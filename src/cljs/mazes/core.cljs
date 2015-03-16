@@ -35,7 +35,8 @@
     (for [x (range columns)]
       [y x])))
 
-(defn east [[y x]] [y (inc x)])
+(defn east  [[y x]] [y (inc x)])
+(defn west  [[y x]] [y (dec x)])
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 

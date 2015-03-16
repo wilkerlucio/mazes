@@ -49,7 +49,8 @@
   (is (= (m/rows-seq (m/blank-grid 2 2))
          [[[0 0] [0 1]] [[1 0] [1 1]]])))
 
-(deftest test-east  (is (= (m/east [0 0]) [0 1])))
+(deftest test-east  (is (= (m/east  [0 0]) [0 1])))
+(deftest test-west  (is (= (m/west  [0 1]) [0 0])))
 (deftest test-north (is (= (m/north [1 0]) [0 0])))
 (deftest test-south (is (= (m/south [0 0]) [1 0])))
 

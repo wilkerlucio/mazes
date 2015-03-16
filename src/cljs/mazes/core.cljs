@@ -59,12 +59,10 @@
   (let [str-repeat #(str/join "" (repeat %1 %2))
         header (str "+" (str-repeat columns "---+") "\n")
         lines (for [row (range rows)
-                    :let [upper (for [column (range columns)
+                    :let [parts (for [column (range columns)
                                       :let [cell [row column]]]
-                                  (str "   " (if (linked-to? grid cell (east cell)) " " "|")))
-                          lower (for [column (range columns)
-                                      :let [cell [row column]]]
-                                  (str (if (linked-to? grid cell (south cell)) "   " "---") "+"))]]
-                (str "|" (str/join "" upper) "\n"
-                     "+" (str/join "" lower) "\n"))]
+                                  [(str "   " (if (linked-to? grid cell (east cell)) " " "|"))
+                                   (str (if (linked-to? grid cell (south cell)) "   " "---") "+")])]]
+                (str "|" (str/join "" (map first parts)) "\n"
+                     "+" (str/join "" (map second parts)) "\n"))]
     (apply str header lines)))

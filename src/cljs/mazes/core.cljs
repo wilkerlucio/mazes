@@ -3,7 +3,7 @@
 
 (enable-console-print!)
 
-(defn blank-grid [rows columns]
+(defn make-grid [rows columns]
   {:rows rows :columns columns :links {}})
 
 (defn link-cells [grid cell-a cell-b]
@@ -67,3 +67,27 @@
                 (str "|" (str/join "" (map first parts)) "\n"
                      "+" (str/join "" (map second parts)) "\n"))]
     (apply str header lines)))
+
+(defn canvas-line [ctx [x1 y1] [x2 y2]]
+  (doto ctx
+    (.beginPath)
+    (.moveTo x1 y1) (.lineTo x2 y2)
+    (.stroke)))
+
+(defn draw-grid [grid ctx cell-size]
+  (doseq [[y x :as cell] (cells-seq grid)
+          :let [x1 (* x cell-size)
+                y1 (* y cell-size)
+                x2 (* (inc x) cell-size)
+                y2 (* (inc y) cell-size)]]
+    (if-not (valid-pos? grid (north cell)) (canvas-line ctx [x1 y1] [x2 y1]))
+    (if-not (valid-pos? grid (west cell)) (canvas-line ctx [x1 y1] [x1 y2]))
+    (if-not (linked-to? grid cell (east cell)) (canvas-line ctx [x2 y1] [x2 y2]))
+    (if-not (linked-to? grid cell (south cell)) (canvas-line ctx [x1 y2] [x2 y2]))))
+
+(defn sample-canvas-draw []
+  (let [canvas (.querySelector js/document "#sample-canvas")
+        ctx (.getContext canvas "2d")
+        grid (-> (make-grid 10 10) gen-binary-tree)]
+    (.clearRect ctx 0 0 600 600)
+    (draw-grid grid ctx 50)))

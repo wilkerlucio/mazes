@@ -4,14 +4,14 @@
   (:require [cemerick.cljs.test :as t]
             [mazes.core :as m]))
 
-(def grid44 (m/blank-grid 4 4))
+(def grid44 (m/make-grid 4 4))
 
-(deftest test-blank-grid
-  (is (= (m/blank-grid 4 3)
+(deftest test-make-grid
+  (is (= (m/make-grid 4 3)
          {:rows 4 :columns 3 :links {}})))
 
 (deftest test-link-cells
-  (is (= (m/link-cells (m/blank-grid 4 3) [0 0] [0 1])
+  (is (= (m/link-cells (m/make-grid 4 3) [0 0] [0 1])
          {:rows 4 :columns 3 :links {[0 0] #{[0 1]}
                                      [0 1] #{[0 0]}}}))
   (is (thrown-with-msg? js/Error #"cell-a" (m/link-cells grid44 nil [1 3])))
@@ -42,11 +42,11 @@
     (is (and (>= x 0) (< x 4)))))
 
 (deftest test-cells-seq
-  (is (= (m/cells-seq (m/blank-grid 2 2))
+  (is (= (m/cells-seq (m/make-grid 2 2))
          [[0 0] [0 1] [1 0] [1 1]])))
 
 (deftest test-rows-seq
-  (is (= (m/rows-seq (m/blank-grid 2 2))
+  (is (= (m/rows-seq (m/make-grid 2 2))
          [[[0 0] [0 1]] [[1 0] [1 1]]])))
 
 (deftest test-east  (is (= (m/east  [0 0]) [0 1])))

@@ -3,6 +3,8 @@
 
 (enable-console-print!)
 
+;; grid
+
 (defn make-grid [rows columns]
   {:rows rows :columns columns :links {}})
 
@@ -40,6 +42,8 @@
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 
+;; maze generators
+
 (defn binary-tree-link-cell [{:keys [rows columns] :as grid} [y x :as cell] direction]
   (cond
     (not (valid-pos? grid cell))      nil
@@ -75,6 +79,8 @@
                       grid row)))
           grid (rows-seq grid)))
 
+;; output
+
 (defn ascii-grid [{:keys [columns rows] :as grid}]
   (let [str-repeat #(str/join "" (repeat %1 %2))
         header (str "+" (str-repeat columns "---+") "\n")
@@ -104,10 +110,12 @@
     (if-not (linked-to? grid cell (east cell)) (canvas-line ctx [x2 y1] [x2 y2]))
     (if-not (linked-to? grid cell (south cell)) (canvas-line ctx [x1 y2] [x2 y2]))))
 
+;; misc
+
 (defn sample-canvas-draw []
   (let [canvas (.querySelector js/document "#sample-canvas")
         ctx (.getContext canvas "2d")
-        grid (-> (make-grid 10 10) gen-binary-tree)]
+        grid (-> (make-grid 10 10) gen-sidewinder)]
     (.clearRect ctx 0 0 (.-width canvas) (.-height canvas))
     (.save ctx)
     (.translate ctx 10 10)

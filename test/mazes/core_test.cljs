@@ -145,4 +145,16 @@
   (is (= (m/trace-route-back simple-maze sample-enumeration [1 1])
          [[1 1] [1 2] [0 2] [0 1] [0 0]])))
 
+(deftest test-farthest-path
+  (is (= (m/farthest-point sample-enumeration)
+         [2 2])))
+
+(deftest test-longest-path-enum
+  (is (= (m/longest-path-enum simple-maze)
+         {[0 1] 5, [1 2] 3, [0 0] 6, [2 2] 0, [0 2] 4, [1 1] 2, [2 1] 1, [1 0] 7, [2 0] 8})))
+
+(deftest test-longest-path
+  (is (= (m/longest-path simple-maze)
+         [[2 0] [1 0] [0 0] [0 1] [0 2] [1 2] [1 1] [2 1] [2 2]])))
+
 (t/test-ns 'mazes.core-test)

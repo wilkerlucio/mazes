@@ -89,13 +89,13 @@
 
 (defn dijkstra-enumerate [grid start-cell]
   (loop [marks {}
-         queue [[0 start-cell]]]
+         queue [[start-cell 0]]]
     (if (seq queue)
       (let [set-marks (set (keys marks))
-            [distance cell] (first queue)
+            [cell distance] (first queue)
             neighbors (->> (accessible-neighbors grid cell)
                            (remove (partial contains? set-marks))
-                           (map #(vector (inc distance) %)))]
+                           (map #(vector % (inc distance))))]
         (recur (assoc marks cell distance)
                (concat (rest queue) neighbors)))
       marks)))
@@ -108,6 +108,21 @@
       (if (> (get marks next) 0)
         (recur (conj path next) next)
         (conj path next)))))
+
+(defn farthest-point [marks]
+  (->> (reduce (fn [[_ max :as current] [_ distance :as next]]
+                 (if (> distance max) next current))
+               [nil 0] marks)
+       first))
+
+(defn longest-path-enum [grid]
+  (->> (dijkstra-enumerate grid [0 0])
+       (farthest-point)
+       (dijkstra-enumerate grid)))
+
+(defn longest-path [grid]
+  (let [longest-enum (longest-path-enum grid)]
+    (trace-route-back grid longest-enum (farthest-point longest-enum))))
 
 ;; output
 

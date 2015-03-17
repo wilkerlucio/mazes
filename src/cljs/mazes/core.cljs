@@ -100,19 +100,30 @@
                (concat (rest queue) neighbors)))
       marks)))
 
+(defn trace-route-back [grid marks start-cell]
+  (loop [path [start-cell]
+         cell start-cell]
+    (let [next (->> (accessible-neighbors grid cell)
+                    (reduce #(if (< (get marks %1) (get marks %2)) %1 %2)))]
+      (if (> (get marks next) 0)
+        (recur (conj path next) next)
+        (conj path next)))))
+
 ;; output
 
-(defn ascii-grid [{:keys [columns rows] :as grid}]
-  (let [str-repeat #(str/join "" (repeat %1 %2))
-        header (str "+" (str-repeat columns "---+") "\n")
-        lines (for [row (range rows)
-                    :let [parts (for [column (range columns)
-                                      :let [cell [row column]]]
-                                  [(str "   " (if (linked-to? grid cell (east cell)) " " "|"))
-                                   (str (if (linked-to? grid cell (south cell)) "   " "---") "+")])]]
-                (str "|" (str/join "" (map first parts)) "\n"
-                     "+" (str/join "" (map second parts)) "\n"))]
-    (apply str header lines)))
+(defn ascii-grid
+  ([grid] (ascii-grid grid (fn [_ _] "   ")))
+  ([{:keys [columns rows] :as grid} content-maker]
+   (let [str-repeat #(str/join "" (repeat %1 %2))
+         header (str "+" (str-repeat columns "---+") "\n")
+         lines (for [row (range rows)
+                     :let [parts (for [column (range columns)
+                                       :let [cell [row column]]]
+                                   [(str " " (content-maker grid cell) " " (if (linked-to? grid cell (east cell)) " " "|"))
+                                    (str (if (linked-to? grid cell (south cell)) "   " "---") "+")])]]
+                 (str "|" (str/join "" (map first parts)) "\n"
+                      "+" (str/join "" (map second parts)) "\n"))]
+     (apply str header lines))))
 
 (defn canvas-line [ctx [x1 y1] [x2 y2]]
   (doto ctx

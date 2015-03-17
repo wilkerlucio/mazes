@@ -129,4 +129,20 @@
           [1 0] 5 [1 1] 0 [1 2] 1
           [2 0] 6 [2 1] 1 [2 2] 2})))
 
+; +---+---+---+
+; | 0   1   2 |
+; +   +---+   +
+; | 1 | 4   3 |
+; +   +   +---+
+; | 2 | 5   6 |
+; +---+---+---+
+(def sample-enumeration
+  {[0 0] 0 [0 1] 1 [0 2] 2
+   [1 0] 1 [1 1] 4 [1 2] 3
+   [2 0] 2 [2 1] 5 [2 2] 6})
+
+(deftest test-trace-route-back
+  (is (= (m/trace-route-back simple-maze sample-enumeration [1 1])
+         [[1 1] [1 2] [0 2] [0 1] [0 0]])))
+
 (t/test-ns 'mazes.core-test)

@@ -6,6 +6,19 @@
 
 (def grid44 (m/make-grid 4 4))
 
+; +---+---+---+
+; |           |
+; +   +---+   +
+; |   |       |
+; +   +   +---+
+; |   |       |
+; +---+---+---+
+(def simple-maze
+  {:rows 3, :columns 3
+   :links {[0 1] #{[0 0] [0 2]} [1 2] #{[1 1] [0 2]} [0 0] #{[0 1] [1 0]} [2 2] #{[2 1]}
+           [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
+           [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}}})
+
 (deftest test-make-grid
   (is (= (m/make-grid 4 3)
          {:rows 4 :columns 3 :links {}})))
@@ -54,6 +67,20 @@
 (deftest test-north (is (= (m/north [1 0]) [0 0])))
 (deftest test-south (is (= (m/south [0 0]) [1 0])))
 
+(deftest test-cell-neighbors
+  (is (= (m/cell-neighbors [1 1]) [[0 1] [1 2] [2 1] [1 0]])))
+
+(deftest test-accessible-neighbors
+  (is (= (m/accessible-neighbors simple-maze [0 0]) [[0 1] [1 0]]))
+  (is (= (m/accessible-neighbors simple-maze [0 1]) [[0 2] [0 0]]))
+  (is (= (m/accessible-neighbors simple-maze [0 2]) [[1 2] [0 1]]))
+  (is (= (m/accessible-neighbors simple-maze [1 0]) [[0 0] [2 0]]))
+  (is (= (m/accessible-neighbors simple-maze [1 1]) [[1 2] [2 1]]))
+  (is (= (m/accessible-neighbors simple-maze [1 2]) [[0 2] [1 1]]))
+  (is (= (m/accessible-neighbors simple-maze [2 0]) [[1 0]]))
+  (is (= (m/accessible-neighbors simple-maze [2 1]) [[1 1] [2 2]]))
+  (is (= (m/accessible-neighbors simple-maze [2 2]) [[2 1]])))
+
 (deftest test-binary-tree-cell
   (is (= (m/binary-tree-link-cell grid44 [0 3] :north) nil  ))
   (is (= (m/binary-tree-link-cell grid44 [0 0] :north) [0 1]))
@@ -64,5 +91,42 @@
   (is (= (m/binary-tree-link-cell grid44 [3 0] :east)  [3 1]))
   (is (= (m/binary-tree-link-cell grid44 [3 3] :north) [2 3]))
   (is (= (m/binary-tree-link-cell grid44 [3 3] :east)  [2 3])))
+
+(deftest test-dijkstra-enumerate
+  ; +---+---+---+
+  ; | 0   1   2 |
+  ; +   +---+   +
+  ; | 1 | 4   3 |
+  ; +   +   +---+
+  ; | 2 | 5   6 |
+  ; +---+---+---+
+  (is (= (m/dijkstra-enumerate simple-maze [0 0])
+         {[0 0] 0 [0 1] 1 [0 2] 2
+          [1 0] 1 [1 1] 4 [1 2] 3
+          [2 0] 2 [2 1] 5 [2 2] 6}))
+
+  ; +---+---+---+
+  ; | 2   1   0 |
+  ; +   +---+   +
+  ; | 3 | 2   1 |
+  ; +   +   +---+
+  ; | 4 | 3   4 |
+  ; +---+---+---+
+  (is (= (m/dijkstra-enumerate simple-maze [0 2])
+         {[0 0] 2 [0 1] 1 [0 2] 0
+          [1 0] 3 [1 1] 2 [1 2] 1
+          [2 0] 4 [2 1] 3 [2 2] 4}))
+
+  ; +---+---+---+
+  ; | 4   3   2 |
+  ; +   +---+   +
+  ; | 5 | 0   1 |
+  ; +   +   +---+
+  ; | 6 | 1   2 |
+  ; +---+---+---+
+  (is (= (m/dijkstra-enumerate simple-maze [1 1])
+         {[0 0] 4 [0 1] 3 [0 2] 2
+          [1 0] 5 [1 1] 0 [1 2] 1
+          [2 0] 6 [2 1] 1 [2 2] 2})))
 
 (t/test-ns 'mazes.core-test)

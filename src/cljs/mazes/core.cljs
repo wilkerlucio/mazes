@@ -42,6 +42,12 @@
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 
+(defn cell-neighbors [cell]
+  [(north cell) (east cell) (south cell) (west cell)])
+
+(defn accessible-neighbors [grid cell]
+  (filter (partial linked-to? grid cell) (cell-neighbors cell)))
+
 ;; maze generators
 
 (defn binary-tree-link-cell [{:keys [rows columns] :as grid} [y x :as cell] direction]
@@ -78,6 +84,21 @@
                             (link-cells grid cell (east cell)))))
                       grid row)))
           grid (rows-seq grid)))
+
+;; solvers
+
+(defn dijkstra-enumerate [grid start-cell]
+  (loop [marks {}
+         queue [[0 start-cell]]]
+    (if (seq queue)
+      (let [set-marks (set (keys marks))
+            [distance cell] (first queue)
+            neighbors (->> (accessible-neighbors grid cell)
+                           (remove (partial contains? set-marks))
+                           (map #(vector (inc distance) %)))]
+        (recur (assoc marks cell distance)
+               (concat (rest queue) neighbors)))
+      marks)))
 
 ;; output
 

@@ -56,6 +56,25 @@
               grid))
           grid (cells-seq grid)))
 
+(defn gen-sidewinder [grid]
+  (reduce (fn [grid row]
+            (let [past (atom [])]
+              (reduce (fn [grid cell]
+                        (swap! past conj cell)
+                        (let [eastern-boundary? (not (valid-pos? grid (east cell)))
+                              norther-boundary? (not (valid-pos? grid (north cell)))
+                              close-out? (or eastern-boundary? (and (not norther-boundary?)
+                                                                    (= 0 (rand-int 2))))]
+                          (if close-out?
+                            (let [member (rand-nth @past)]
+                              (reset! past [])
+                              (if (valid-pos? grid (north member))
+                                (link-cells grid member (north member))
+                                grid))
+                            (link-cells grid cell (east cell)))))
+                      grid row)))
+          grid (rows-seq grid)))
+
 (defn ascii-grid [{:keys [columns rows] :as grid}]
   (let [str-repeat #(str/join "" (repeat %1 %2))
         header (str "+" (str-repeat columns "---+") "\n")
@@ -89,5 +108,8 @@
   (let [canvas (.querySelector js/document "#sample-canvas")
         ctx (.getContext canvas "2d")
         grid (-> (make-grid 10 10) gen-binary-tree)]
-    (.clearRect ctx 0 0 600 600)
-    (draw-grid grid ctx 50)))
+    (.clearRect ctx 0 0 (.-width canvas) (.-height canvas))
+    (.save ctx)
+    (.translate ctx 10 10)
+    (draw-grid grid ctx 50)
+    (.restore ctx)))

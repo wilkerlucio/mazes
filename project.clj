@@ -6,7 +6,8 @@
 
   :dependencies [[org.clojure/clojure "1.7.0-alpha5"]
                  [org.clojure/clojurescript "0.0-3058"]
-                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]]
+                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [camel-snake-kebab "0.2.4"]]
 
   :profiles {:dev {:dependencies [[com.cemerick/clojurescript.test "0.3.3"]
                                   [figwheel "0.2.5-SNAPSHOT"]]
@@ -18,7 +19,7 @@
   :source-paths ["src/cljs" "src/dev"]
 
   :clean-targets ^{:protect false} ["resources/public/js/compiled"]
-  
+
   :cljsbuild {
     :builds [{:id "dev"
               :source-paths ["src/cljs" "src/dev" "test"]
@@ -33,12 +34,12 @@
              {:id "min"
               :source-paths ["src/cljs"]
               :compiler {:output-to "resources/public/js/compiled/mazes.js"
-                         :main mazes.core                         
+                         :main mazes.core
                          :optimizations :advanced
                          :pretty-print false}}]}
 
   :figwheel {
-             :http-server-root "public" ;; default and assumes "resources" 
+             :http-server-root "public" ;; default and assumes "resources"
              :server-port 3449 ;; default
              :css-dirs ["resources/public/css"] ;; watch and update CSS
 
@@ -64,5 +65,5 @@
              ;; :repl false
 
              ;; to configure a different figwheel logfile path
-             ;; :server-logfile "tmp/logs/figwheel-logfile.log" 
+             ;; :server-logfile "tmp/logs/figwheel-logfile.log"
              })

@@ -1,5 +1,6 @@
 (ns ^:figwheel-always mazes.core
-    (:require [clojure.string :as str]))
+  (:require-macros [wilkerdev.util.macros :refer [bench]])
+  (:require [clojure.string :as str]))
 
 (enable-console-print!)
 
@@ -91,10 +92,9 @@
   (loop [marks {}
          queue [[start-cell 0]]]
     (if (seq queue)
-      (let [set-marks (set (keys marks))
-            [cell distance] (first queue)
+      (let [[cell distance] (first queue)
             neighbors (->> (accessible-neighbors grid cell)
-                           (remove (partial contains? set-marks))
+                           (remove (partial contains? marks))
                            (map #(vector % (inc distance))))]
         (recur (assoc marks cell distance)
                (concat (rest queue) neighbors)))
@@ -109,19 +109,15 @@
         (recur (conj path next) next)
         (conj path next)))))
 
-(defn farthest-point [marks]
-  (->> (reduce (fn [[_ max :as current] [_ distance :as next]]
-                 (if (> distance max) next current))
-               [nil 0] marks)
-       first))
+(defn farthest-point [marks] (-> (sort-by second marks) last first))
 
-(defn longest-path-enum [grid]
+(defn longest-path-marks [grid]
   (->> (dijkstra-enumerate grid [0 0])
        (farthest-point)
        (dijkstra-enumerate grid)))
 
 (defn longest-path [grid]
-  (let [longest-enum (longest-path-enum grid)]
+  (let [longest-enum (longest-path-marks grid)]
     (trace-route-back grid longest-enum (farthest-point longest-enum))))
 
 ;; output
@@ -160,7 +156,7 @@
 (defn draw-backgrounds [ctx marks cell-size]
   (let [max-distance (get marks (farthest-point marks))
         color-at (fn [x] (->> (/ x max-distance)
-                              (* 100)
+                              (* 200)
                               (.round js/Math)
                               (- 255)))]
     (doseq [[cell distance] marks
@@ -172,15 +168,15 @@
 
 ;; misc
 
-(defn sample-canvas-draw []
+(defn sample-canvas-draw [grid-size]
   (let [canvas (.querySelector js/document "#sample-canvas")
         ctx (.getContext canvas "2d")
-        grid (-> (make-grid 15 15) gen-sidewinder)
-        cell-size 30]
+        grid (-> (make-grid grid-size grid-size) gen-sidewinder)
+        cell-size (/ (.-width canvas) (:columns grid))
+        marks (longest-path-marks grid)]
     (doto ctx
       (.clearRect 0 0 (.-width canvas) (.-height canvas))
       (.save)
-      (.translate 10 10)
-      (draw-backgrounds (longest-path-enum grid) cell-size)
+      (draw-backgrounds marks cell-size)
       (draw-grid grid cell-size)
       (.restore))))

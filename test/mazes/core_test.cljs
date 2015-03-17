@@ -150,7 +150,7 @@
          [2 2])))
 
 (deftest test-longest-path-enum
-  (is (= (m/longest-path-enum simple-maze)
+  (is (= (m/longest-path-marks simple-maze)
          {[0 1] 5, [1 2] 3, [0 0] 6, [2 2] 0, [0 2] 4, [1 1] 2, [2 1] 1, [1 0] 7, [2 0] 8})))
 
 (deftest test-longest-path

@@ -146,25 +146,41 @@
     (.moveTo x1 y1) (.lineTo x2 y2)
     (.stroke)))
 
-(defn draw-grid [grid ctx cell-size]
-  (doseq [[y x :as cell] (cells-seq grid)
-          :let [x1 (* x cell-size)
-                y1 (* y cell-size)
-                x2 (* (inc x) cell-size)
-                y2 (* (inc y) cell-size)]]
+(defn cell-bounds [[y x] cell-size]
+  [(* x cell-size) (* y cell-size)
+   (* (inc x) cell-size) (* (inc y) cell-size)])
+
+(defn draw-grid [ctx grid cell-size]
+  (doseq [cell (cells-seq grid) :let [[x1 y1 x2 y2] (cell-bounds cell cell-size)]]
     (if-not (valid-pos? grid (north cell)) (canvas-line ctx [x1 y1] [x2 y1]))
     (if-not (valid-pos? grid (west cell)) (canvas-line ctx [x1 y1] [x1 y2]))
     (if-not (linked-to? grid cell (east cell)) (canvas-line ctx [x2 y1] [x2 y2]))
     (if-not (linked-to? grid cell (south cell)) (canvas-line ctx [x1 y2] [x2 y2]))))
+
+(defn draw-backgrounds [ctx marks cell-size]
+  (let [max-distance (get marks (farthest-point marks))
+        color-at (fn [x] (->> (/ x max-distance)
+                              (* 100)
+                              (.round js/Math)
+                              (- 255)))]
+    (doseq [[cell distance] marks
+            :let [color (color-at distance)
+                  [x y] (cell-bounds cell cell-size)]]
+      (doto ctx
+        (aset "fillStyle" (str "rgb(" color ", " 255 ", " color ")"))
+        (.fillRect x y cell-size cell-size)))))
 
 ;; misc
 
 (defn sample-canvas-draw []
   (let [canvas (.querySelector js/document "#sample-canvas")
         ctx (.getContext canvas "2d")
-        grid (-> (make-grid 10 10) gen-sidewinder)]
-    (.clearRect ctx 0 0 (.-width canvas) (.-height canvas))
-    (.save ctx)
-    (.translate ctx 10 10)
-    (draw-grid grid ctx 50)
-    (.restore ctx)))
+        grid (-> (make-grid 15 15) gen-sidewinder)
+        cell-size 30]
+    (doto ctx
+      (.clearRect 0 0 (.-width canvas) (.-height canvas))
+      (.save)
+      (.translate 10 10)
+      (draw-backgrounds (longest-path-enum grid) cell-size)
+      (draw-grid grid cell-size)
+      (.restore))))

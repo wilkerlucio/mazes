@@ -192,9 +192,9 @@
   (bench (str grid-size "x" grid-size " grid generated, solved and drawn in")
     (let [canvas (.querySelector js/document "#sample-canvas")
           ctx (.getContext canvas "2d")
-          grid (-> (make-grid grid-size grid-size) gen-sidewinder)
+          grid (bench "generating maze" (-> (make-grid grid-size grid-size) gen-aldous-broder))
           cell-size (/ (.-width canvas) (:columns grid))
-          marks (dijkstra-enumerate grid (rand-cell grid))]
+          marks (longest-path-marks grid)]
       (doto ctx
         (.clearRect 0 0 (.-width canvas) (.-height canvas))
         (.save)

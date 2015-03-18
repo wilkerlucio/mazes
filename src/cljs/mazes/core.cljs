@@ -9,6 +9,8 @@
 (defn make-grid [rows columns]
   {:rows rows :columns columns :links {}})
 
+(defn count-cells [{:keys [rows columns]}] (* rows columns))
+
 (defn link-cells [grid cell-a cell-b]
   (assert (not (nil? cell-a)))
   (assert (not (nil? cell-b)))
@@ -86,6 +88,17 @@
                       grid row)))
           grid (rows-seq grid)))
 
+(defn gen-aldous-broder [grid]
+  (let [cells-n (count-cells grid)]
+    (loop [{:keys [links] :as grid} grid
+           cell (rand-cell grid)]
+      (if (< (count links) cells-n)
+        (let [next (rand-nth (->> (cell-neighbors cell)
+                                  (filter (partial valid-pos? grid))))]
+          (recur (if (contains? links next) grid (link-cells grid cell next))
+                 next))
+        grid))))
+
 ;; solvers
 
 (defn dijkstra-enumerate [grid start-cell]
@@ -123,7 +136,7 @@
 ;; output
 
 (defn ascii-grid
-  ([grid] (ascii-grid grid (fn [_ _] "   ")))
+  ([grid] (ascii-grid grid (fn [_ _] " ")))
   ([{:keys [columns rows] :as grid} content-maker]
    (let [str-repeat #(str/join "" (repeat %1 %2))
          header (str "+" (str-repeat columns "---+") "\n")

@@ -23,6 +23,10 @@
   (is (= (m/make-grid 4 3)
          {:rows 4 :columns 3 :links {}})))
 
+(deftest test-count-cells
+  (is (= (m/count-cells grid44) 16))
+  (is (= (m/count-cells simple-maze) 9)))
+
 (deftest test-link-cells
   (is (= (m/link-cells (m/make-grid 4 3) [0 0] [0 1])
          {:rows 4 :columns 3 :links {[0 0] #{[0 1]}

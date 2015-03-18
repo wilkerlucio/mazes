@@ -7,7 +7,8 @@
   :dependencies [[org.clojure/clojure "1.7.0-alpha5"]
                  [org.clojure/clojurescript "0.0-3123"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [camel-snake-kebab "0.2.4"]]
+                 [camel-snake-kebab "0.2.4"]
+                 [org.omcljs/om "0.8.8"]]
 
   :profiles {:dev {:dependencies [[com.cemerick/clojurescript.test "0.3.3"]
                                   [figwheel "0.2.5-SNAPSHOT"]]

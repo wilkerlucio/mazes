@@ -15,13 +15,15 @@
     </content>
     <orderEntry type="jdk" jdkName="Clojure" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="Leiningen: camel-snake-kebab:0.2.4" level="project" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.3" level="project" />
     <orderEntry type="library" name="Leiningen: com.cemerick/clojurescript.test:0.3.3" level="project" />
     <orderEntry type="library" name="Leiningen: figwheel:0.2.5-20150218.182942-2" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/clojure:1.7.0-alpha5" level="project" />
-    <orderEntry type="library" name="Leiningen: org.clojure/clojurescript:0.0-3058" level="project" />
+    <orderEntry type="library" name="Leiningen: org.clojure/clojurescript:0.0-3123" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.async:0.1.346.0-17112a-alpha" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.6" level="project" />
+    <orderEntry type="library" name="Leiningen: org.omcljs/om:0.8.8" level="project" />
     <orderEntry type="library" name="Leiningen: com.google.javascript/closure-compiler:v20150126" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/data.json:0.2.6" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/google-closure-library:0.0-20140718-946a7d39" level="project" />
@@ -43,5 +45,6 @@
     <orderEntry type="library" name="Leiningen: org.ow2.asm/asm-all:4.1" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.cache:0.6.3" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/data.priority-map:0.0.2" level="project" />
+    <orderEntry type="library" name="Leiningen: cljsjs/react:0.12.2-5" level="project" />
   </component>
 </module>

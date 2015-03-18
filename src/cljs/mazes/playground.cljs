@@ -66,14 +66,18 @@
       (.restore))))
 
 (def opt-algorithms
-  {:binary-tree m/gen-binary-tree
-   :sidewinder m/gen-sidewinder
-   :aldous-broder m/gen-aldous-broder
-   :wilson m/gen-wilson})
+  (sorted-map
+    :aldous-broder {:label "Aldous Broder"
+                    :value m/gen-aldous-broder}
+    :binary-tree {:label "Binary Tree"
+                  :value m/gen-binary-tree}
+    :sidewinder {:label "Sidewinder"
+                 :value m/gen-sidewinder}
+    :wilson {:label "Wilson's"
+             :value m/gen-wilson}))
 
 (defn impl->options [m]
-  (->> (keys m)
-       (map #(hash-map :label (name %) :value (name %)))))
+  (map (fn [[k v]] {:label (:label v) :value (name k)}) m))
 
 (defn attrs [base & removals]
   (clj->js (apply dissoc base removals)))
@@ -153,7 +157,7 @@
 
         (go-sub pub :generate-maze [_]
           (let [grid-size (:grid-size @app-state)
-                generator (get opt-algorithms (:generator @app-state))
+                generator (get-in opt-algorithms [(:generator @app-state) :value])
                 maze (bench "generating maze" (-> (m/make-grid grid-size grid-size) generator))
                 marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
             (om/update! data :maze maze)

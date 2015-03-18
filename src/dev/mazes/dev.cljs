@@ -3,14 +3,15 @@
             [mazes.core]
             [mazes.playground]
             [mazes.core-test]
-            [cemerick.cljs.test :as t]))
+            [cemerick.cljs.test :as t]
+            [cljs.core.async :refer [put!]]))
 
 (defn refresh []
-  (mazes.playground/build-at (.getElementById js/document "app-container"))
-  #_ (mazes.playground/draw-maze (.querySelector js/document "#sample-canvas") {:grid-size 10}))
+  (mazes.playground/build-at (.getElementById js/document "app-container")))
 
 (fw/start {
            :websocket-url "ws://localhost:3449/figwheel-ws"
            :on-jsload     refresh})
 
-(refresh)
+(let [maze (refresh)]
+  (put! (:bus maze) [:generate-maze]))

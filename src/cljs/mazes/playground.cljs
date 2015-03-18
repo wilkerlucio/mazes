@@ -68,7 +68,8 @@
 (def opt-algorithms
   {:binary-tree m/gen-binary-tree
    :sidewinder m/gen-sidewinder
-   :aldous-broder m/gen-aldous-broder})
+   :aldous-broder m/gen-aldous-broder
+   :wilson m/gen-wilson})
 
 (defn impl->options [m]
   (->> (keys m)
@@ -140,13 +141,16 @@
     (will-mount [_]
       (let [pub (om/get-state owner :pub)
             bus (om/get-state owner :bus)]
+
         (go-sub pub :update-generator [_ generator]
           (om/update! data :generator (keyword generator))
           (put! bus [:generate-maze]))
+
         (go-sub pub :update-grid-size [_ grid-size]
           (let [n (or (js/parseInt grid-size) 0)]
             (om/update! data :grid-size (fit-in-range n 2 100)))
           (put! bus [:generate-maze]))
+
         (go-sub pub :generate-maze [_]
           (let [grid-size (:grid-size @app-state)
                 generator (get opt-algorithms (:generator @app-state))
@@ -154,6 +158,7 @@
                 marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
             (om/update! data :maze maze)
             (om/update! data :marks marks)))))
+
     om/IRender
     (render [_]
       (let [bus (om/get-state owner :bus)]
@@ -169,8 +174,10 @@
           (dom/button #js {:onClick #(put! bus [:generate-maze])
                            :style #js {:margin-top "10px"}} "Generate maze")
           (dom/hr nil)
-          (om/build comp-grid {:grid (:maze data) :marks (:marks data) :width 600 :height 600
+          (om/build comp-grid {:grid (:maze data) :marks (:marks data)
+                               :width 600 :height 600
                                :style #js {:border "1px solid #000"}}))))))
 
 (defn build-at [node]
-  (om/root maze-playground app-state {:target node}))
+  (let [root (om/root maze-playground app-state {:target node})]
+    (om/get-state root)))

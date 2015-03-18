@@ -19,6 +19,12 @@
            [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
            [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}}})
 
+(deftest test-index-of
+  (is (= (m/index-of :a [:a :b :c]) 0))
+  (is (= (m/index-of :b [:a :b :c]) 1))
+  (is (= (m/index-of :c [:a :b :c]) 2))
+  (is (= (m/index-of :d [:a :b :c]) nil)))
+
 (deftest test-make-grid
   (is (= (m/make-grid 4 3)
          {:rows 4 :columns 3 :links {}})))
@@ -27,12 +33,25 @@
   (is (= (m/count-cells grid44) 16))
   (is (= (m/count-cells simple-maze) 9)))
 
+(deftest test-visit-cell
+  (is (= (m/visit-cell {:links {}} [0 1])
+         {:links {[0 1] #{}}}))
+  (is (= (m/visit-cell {:links {[0 1] #{[0 2]}}} [0 1])
+         {:links {[0 1] #{[0 2]}}})))
+
 (deftest test-link-cells
   (is (= (m/link-cells (m/make-grid 4 3) [0 0] [0 1])
          {:rows 4 :columns 3 :links {[0 0] #{[0 1]}
                                      [0 1] #{[0 0]}}}))
   (is (thrown-with-msg? js/Error #"cell-a" (m/link-cells grid44 nil [1 3])))
   (is (thrown-with-msg? js/Error #"cell-b" (m/link-cells grid44 [1 2] nil))))
+
+(deftest test-link-path
+  (is (= (m/link-path grid44 [[0 0] [0 1] [1 1] [2 1]])
+         {:rows 4, :columns 4, :links {[0 0] #{[0 1]}
+                                       [0 1] #{[0 0] [1 1]}
+                                       [1 1] #{[0 1] [2 1]}
+                                       [2 1] #{[1 1]}}})))
 
 (deftest test-linked-to?
   (let [linked-grid (m/link-cells grid44 [1 2] [1 3])]
@@ -65,6 +84,10 @@
 (deftest test-rows-seq
   (is (= (m/rows-seq (m/make-grid 2 2))
          [[[0 0] [0 1]] [[1 0] [1 1]]])))
+
+(deftest test-unvisited-cells
+  (is (= (m/unvisited-cells (assoc (m/make-grid 2 2) :links {[1 1] #{} [0 1] #{}}))
+         [[0 0] [1 0]])))
 
 (deftest test-east  (is (= (m/east  [0 0]) [0 1])))
 (deftest test-west  (is (= (m/west  [0 1]) [0 0])))

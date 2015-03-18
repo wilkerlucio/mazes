@@ -4,6 +4,11 @@
 
 (enable-console-print!)
 
+;; util
+
+(defn index-of [value coll]
+  (first (keep-indexed #(if (= %2 value) %1) coll)))
+
 ;; grid
 
 (defn make-grid [rows columns]
@@ -11,12 +16,20 @@
 
 (defn count-cells [{:keys [rows columns]}] (* rows columns))
 
+(defn visit-cell [grid cell]
+  (update-in grid [:links cell] #(or % #{})))
+
 (defn link-cells [grid cell-a cell-b]
   (assert (not (nil? cell-a)))
   (assert (not (nil? cell-b)))
   (-> grid
       (update-in [:links cell-a] #(conj (or % #{}) cell-b))
       (update-in [:links cell-b] #(conj (or % #{}) cell-a))))
+
+(defn link-path [grid path]
+  (reduce (fn [grid [ca cb]] (link-cells grid ca cb))
+          grid
+          (partition 2 1 path)))
 
 (defn linked-to? [grid cell-a cell-b]
   (contains? (get-in grid [:links cell-a] #{}) cell-b))
@@ -34,6 +47,10 @@
 (defn cells-seq [{:keys [rows columns]}]
   (for [y (range rows) x (range columns)]
     [y x]))
+
+(defn unvisited-cells [{:keys [links] :as grid}]
+  (->> (cells-seq grid)
+       (remove (partial contains? links))))
 
 (defn rows-seq [{:keys [rows columns]}]
   (for [y (range rows)]
@@ -98,6 +115,27 @@
           (recur (if (contains? links next) grid (link-cells grid cell next))
                  next))
         grid))))
+
+(defn gen-wilson [grid]
+  (let [cells-n (count-cells grid)]
+    (loop [{:keys [links] :as grid} (visit-cell grid (rand-cell grid))
+           path []]
+      (let [path-last (last path)]
+        (cond
+          (= (count links) cells-n) grid
+
+          ; clean path, pick a random position to start
+          (not (seq path)) (recur grid [(rand-nth (unvisited-cells grid))])
+
+          ; hit a visited place, apply the path
+          (contains? links path-last) (recur (link-path grid path) [])
+
+          :else
+          (let [next (rand-nth (->> (cell-neighbors path-last)
+                                    (filter (partial valid-pos? grid))))]
+            (if-let [self-hit (index-of next path)]
+              (recur grid (subvec path 0 (inc self-hit)))
+              (recur grid (conj path next)))))))))
 
 ;; solvers
 

@@ -147,36 +147,44 @@
    (* (inc x) cell-size) (* (inc y) cell-size)])
 
 (defn draw-grid [ctx grid cell-size]
-  (doseq [cell (cells-seq grid) :let [[x1 y1 x2 y2] (cell-bounds cell cell-size)]]
-    (if-not (valid-pos? grid (north cell)) (canvas-line ctx [x1 y1] [x2 y1]))
-    (if-not (valid-pos? grid (west cell)) (canvas-line ctx [x1 y1] [x1 y2]))
-    (if-not (linked-to? grid cell (east cell)) (canvas-line ctx [x2 y1] [x2 y2]))
-    (if-not (linked-to? grid cell (south cell)) (canvas-line ctx [x1 y2] [x2 y2]))))
+  (bench "draw grid"
+    (doseq [cell (cells-seq grid) :let [[x1 y1 x2 y2] (cell-bounds cell cell-size)]]
+     (if-not (valid-pos? grid (north cell)) (canvas-line ctx [x1 y1] [x2 y1]))
+     (if-not (valid-pos? grid (west cell)) (canvas-line ctx [x1 y1] [x1 y2]))
+     (if-not (linked-to? grid cell (east cell)) (canvas-line ctx [x2 y1] [x2 y2]))
+     (if-not (linked-to? grid cell (south cell)) (canvas-line ctx [x1 y2] [x2 y2])))))
+
+(defn color-compute-blue-to-red [x]
+  (let [color (->> (* 255 x)
+                   (.round js/Math)
+                   (- 255))]
+    (str "rgb(" (- 255 color) ", " color ", " color ")")))
 
 (defn draw-backgrounds [ctx marks cell-size]
-  (let [max-distance (get marks (farthest-point marks))
-        color-at (fn [x] (->> (/ x max-distance)
-                              (* 200)
-                              (.round js/Math)
-                              (- 255)))]
-    (doseq [[cell distance] marks
-            :let [color (color-at distance)
-                  [x y] (cell-bounds cell cell-size)]]
-      (doto ctx
-        (aset "fillStyle" (str "rgb(" color ", " 255 ", " color ")"))
-        (.fillRect x y cell-size cell-size)))))
+  (bench "draw background"
+    (let [max-distance (get marks (farthest-point marks))
+          color-at (fn [x] (->> (/ x max-distance)
+                                (* 255)
+                                (.round js/Math)
+                                (- 255)))]
+      (doseq [[cell distance] marks
+              :let [[x y] (cell-bounds cell cell-size)]]
+        (doto ctx
+          (aset "fillStyle" (color-compute-blue-to-red (/ distance max-distance)))
+          (.fillRect x y cell-size cell-size))))))
 
 ;; misc
 
 (defn sample-canvas-draw [grid-size]
-  (let [canvas (.querySelector js/document "#sample-canvas")
-        ctx (.getContext canvas "2d")
-        grid (-> (make-grid grid-size grid-size) gen-sidewinder)
-        cell-size (/ (.-width canvas) (:columns grid))
-        marks (longest-path-marks grid)]
-    (doto ctx
-      (.clearRect 0 0 (.-width canvas) (.-height canvas))
-      (.save)
-      (draw-backgrounds marks cell-size)
-      (draw-grid grid cell-size)
-      (.restore))))
+  (bench (str grid-size "x" grid-size " grid generated, solved and drawn in")
+    (let [canvas (.querySelector js/document "#sample-canvas")
+          ctx (.getContext canvas "2d")
+          grid (-> (make-grid grid-size grid-size) gen-sidewinder)
+          cell-size (/ (.-width canvas) (:columns grid))
+          marks (dijkstra-enumerate grid (rand-cell grid))]
+      (doto ctx
+        (.clearRect 0 0 (.-width canvas) (.-height canvas))
+        (.save)
+        (draw-backgrounds marks cell-size)
+        (draw-grid grid cell-size)
+        (.restore)))))

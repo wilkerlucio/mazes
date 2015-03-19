@@ -61,7 +61,7 @@
 ;; svg helpers
 
 (defn svg-line [x1 y1 x2 y2]
-  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :stroke-width "1"}}))
+  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :stroke-width "2" :stroke-linecap "round"}}))
 
 ;; components
 
@@ -95,6 +95,14 @@
                        (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line %) lines))))]
     (apply dom/g nil (map link->line (cells-seq grid)))))
 
+(defn comp-grid-dead-ends [{:keys [width]} {:keys [dead-ends columns]}]
+  (let [cell-size (/ width columns)
+        mark->rect (fn [cell]
+                     (let [[x y] (cell-bounds cell cell-size)]
+                       (dom/rect #js {:width cell-size :height cell-size :x x :y y
+                                      :style #js {:fill "rgba(255, 255, 0, 0.3)"}})))]
+    (apply dom/g nil (map mark->rect (keys dead-ends)))))
+
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
     om/IDisplayName (display-name [_] "Maze Playground")
@@ -121,7 +129,7 @@
                 generator (get-in opt-algorithms [(:generator @app-state) :value])
                 maze (bench "generating maze" (-> (m/make-grid grid-size grid-size) generator))
                 marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
-            (om/update! data :maze (assoc maze :marks marks))))))
+            (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze))))))))
 
     om/IRender
     (render [_]
@@ -142,6 +150,7 @@
           (let [size {:width 600 :height 600}]
             (dom/svg (clj->js size)
               (comp-grid-backgrounds size (:maze data))
+              (comp-grid-dead-ends size (:maze data))
               (comp-grid-lines size (:maze data)))))))))
 
 ;; initializer

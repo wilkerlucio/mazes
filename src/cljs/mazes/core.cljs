@@ -127,7 +127,7 @@
     (loop [{:keys [links] :as grid} grid
            cell (rand-cell grid)]
       (if (< (count links) cells-n)
-        (let [next (rand-nth (valid-neighbors grid cell))]
+        (let [next (rand-nth (vec (valid-neighbors grid cell)))]
           (recur (if (contains? links next) grid (link-cells grid cell next))
                  next))
         grid))))
@@ -141,13 +141,13 @@
           (= (count links) cells-n) grid
 
           ; clean path, pick a random position to start
-          (not (seq path)) (recur grid [(rand-nth (unvisited-cells grid))])
+          (not (seq path)) (recur grid [(rand-nth (vec (unvisited-cells grid)))])
 
           ; hit a visited place, apply the path
           (contains? links path-last) (recur (link-path grid path) [])
 
           :else
-          (let [next (rand-nth (valid-neighbors grid path-last))]
+          (let [next (rand-nth (vec (valid-neighbors grid path-last)))]
             (if-let [self-hit (index-of next path)]
               (recur grid (subvec path 0 (inc self-hit)))
               (recur grid (conj path next)))))))))

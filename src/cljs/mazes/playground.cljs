@@ -73,6 +73,8 @@
                   :value m/gen-binary-tree}
     :hunt-and-kill {:label "Hunt and Kill"
                     :value m/gen-hunt-and-kill}
+    :recursive-backtracker {:label "Recursive Backtracker"
+                            :value m/gen-recursive-backtracker}
     :sidewinder {:label "Sidewinder"
                  :value m/gen-sidewinder}
     :wilson {:label "Wilson's"

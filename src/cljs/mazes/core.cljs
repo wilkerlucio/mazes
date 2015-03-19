@@ -78,6 +78,11 @@
        (filter (partial linked-to? grid cell))
        (set)))
 
+(defn unvisited-neighbors [grid cell]
+  (->> (valid-neighbors grid cell)
+       (remove (partial visited-cell? grid))
+       (set)))
+
 (defn dead-ends [{:keys [links]}] (filter (fn [[_ v]] (= (count v) 1)) links))
 
 ;; maze generators
@@ -153,9 +158,7 @@
            cell (rand-cell grid)]
       (if (= (count links) cells-n)
         grid
-        (if-let [next-options (->> (valid-neighbors grid cell)
-                                   (remove (partial visited-cell? grid))
-                                   seq)]
+        (if-let [next-options (seq (unvisited-neighbors grid cell))]
           (let [next (rand-nth next-options)]
             (recur (link-cells grid cell next) next))
           (let [[next linkable-neighbors]
@@ -167,6 +170,18 @@
                                  [c (vec connections)]))))
                      first)]
             (recur (link-cells grid next (rand-nth linkable-neighbors)) next)))))))
+
+(defn gen-recursive-backtracker [grid]
+  (let [cells-n (count-cells grid)]
+    (loop [{:keys [links] :as grid} grid
+           stack (list (rand-cell grid))]
+      (if (= (count links) cells-n)
+        grid
+        (let [cell (peek stack)]
+          (if-let [next-options (seq (unvisited-neighbors grid cell))]
+            (let [next (rand-nth next-options)]
+              (recur (link-cells grid cell next) (conj stack next)))
+            (recur grid (pop stack))))))))
 
 ;; solvers
 

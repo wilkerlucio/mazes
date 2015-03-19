@@ -117,6 +117,10 @@
   (is (= (m/accessible-neighbors simple-maze [2 1]) #{[1 1] [2 2]}))
   (is (= (m/accessible-neighbors simple-maze [2 2]) #{[2 1]})))
 
+(deftest test-unvisited-neighbors
+  (is (= (m/unvisited-neighbors (assoc grid44 :links {[0 1] #{}}) [0 0])
+         #{[1 0]})))
+
 (deftest test-dead-ends
   (is (= (m/dead-ends simple-maze) [[[2 2] #{[2 1]}] [[2 0] #{[1 0]}]])))
 

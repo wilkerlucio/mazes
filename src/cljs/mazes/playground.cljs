@@ -114,8 +114,7 @@
 
         (go-sub pub :update-grid-size [_ grid-size]
           (let [n (or (js/parseInt grid-size) 0)]
-            (om/update! data :grid-size (fit-in-range n 2 100)))
-          (put! bus [:generate-maze]))
+            (om/update! data :grid-size (fit-in-range n 2 100))))
 
         (go-sub pub :generate-maze [_]
           (let [grid-size (:grid-size @app-state)

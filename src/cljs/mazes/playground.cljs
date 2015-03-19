@@ -10,10 +10,14 @@
 ;; state and data
 
 (defonce app-state
-  (atom {:grid-size      10
+  (atom {:grid-size      20
          :generator      :recursive-backtracker
          :marker-builder :random-point
-         :colorizer      :blue-to-red}))
+         :colorizer      :blue-to-red
+         :layers         {:distance-mash {:show     true
+                                          :color-fn :blue-to-red}
+                          :grid-lines    {:show true}
+                          :dead-ends     {:show true}}}))
 
 (def opt-algorithms
   (sorted-map
@@ -30,6 +34,25 @@
     :wilson {:label "Wilson's"
              :value m/gen-wilson}))
 
+(defn color-compute-blue-to-red [x]
+  (let [color (->> (* 255 x)
+                   (.round js/Math)
+                   (- 255))]
+    (str "rgb(" (- 255 color) ", " color ", " color ")")))
+
+(defn color-compute-green-to-black [x]
+  (let [color (->> (* 255 x)
+                   (.round js/Math)
+                   (- 255))]
+    (str "rgb(" 0 ", " color ", " 0 ")")))
+
+(def opt-color-functions
+  (sorted-map
+    :blue-to-red {:label "Blue to Red"
+                  :value color-compute-blue-to-red}
+    :green-to-black {:label "Green to Black"
+                     :value color-compute-green-to-black}))
+
 ;; helpers
 
 (defn cell-bounds [[y x] cell-size]
@@ -44,24 +67,12 @@
 
 (defn fit-in-range [n mi ma] (max (min n ma) mi))
 
-;; color functions
-
-(defn color-compute-blue-to-red [x]
-  (let [color (->> (* 255 x)
-                   (.round js/Math)
-                   (- 255))]
-    (str "rgb(" (- 255 color) ", " color ", " color ")")))
-
-(defn color-compute-green-to-black [x]
-  (let [color (->> (* 255 x)
-                   (.round js/Math)
-                   (- 255))]
-    (str "rgb(" 0 ", " color ", " 0 ")")))
+(defn target-value [e] (.. e -target -value))
 
 ;; svg helpers
 
 (defn svg-line [x1 y1 x2 y2]
-  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :stroke-width "2" :stroke-linecap "round"}}))
+  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :strokeWidth "2" :strokeLinecap "round"}}))
 
 ;; components
 
@@ -103,6 +114,10 @@
                                       :style #js {:fill "rgba(255, 255, 0, 0.3)"}})))]
     (apply dom/g nil (map mark->rect (keys dead-ends)))))
 
+(defn comp-layer-toggler [layer {:keys [data bus]}]
+  (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])
+                  :onChange #(put! bus [:update-layer layer :show (.. % -target -checked)])}))
+
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
     om/IDisplayName (display-name [_] "Maze Playground")
@@ -124,6 +139,9 @@
           (let [n (or (js/parseInt grid-size) 0)]
             (om/update! data :grid-size (fit-in-range n 2 100))))
 
+        (go-sub pub :update-layer [_ layer prop value]
+          (om/transact! data #(assoc-in % [:layers layer prop] value)))
+
         (go-sub pub :generate-maze [_]
           (let [grid-size (:grid-size @app-state)
                 generator (get-in opt-algorithms [(:generator @app-state) :value])
@@ -133,25 +151,41 @@
 
     om/IRender
     (render [_]
-      (let [bus (om/get-state owner :bus)]
+      (let [bus (om/get-state owner :bus)
+            flux {:data data :bus bus}
+            color-fn (get-in data [:layers :distance-mash :color-fn])]
         (dom/div nil
           (dom/label #js {:style #js {:display "block"}}
             "Generator algorithm: "
             (comp-select {:value    (name generator) :options (impl->options opt-algorithms)
-                          :onChange #(put! bus [:update-generator (.. % -target -value)])}))
+                          :onChange #(put! bus [:update-generator (target-value %)])}))
           (dom/label #js {:style #js {:display "block"}}
             "Grid size: "
             (dom/input #js {:type     "number" :value grid-size :min 4 :max 100
-                            :onChange #(put! bus [:update-grid-size (.. % -target -value)])}))
+                            :onChange #(put! bus [:update-grid-size (target-value %)])}))
           (dom/button #js {:onClick #(put! bus [:generate-maze])
                            :style #js {:margin-top "10px"}} "Generate maze")
+
+          (dom/div nil
+            "Distance Gradient layer: "
+            (comp-layer-toggler :distance-mash flux)
+            (comp-select {:value    (name color-fn) :options (impl->options opt-color-functions)
+                          :onChange #(put! bus [:update-layer :distance-mash :color-fn (keyword (target-value %))])}))
+          (dom/div nil
+            "Dead Ends layer: "
+            (comp-layer-toggler :dead-ends flux))
+          (dom/div nil
+            "Grid Lines layer: "
+            (comp-layer-toggler :grid-lines flux))
+
           (dom/hr nil)
 
           (let [size {:width 600 :height 600}]
             (dom/svg (clj->js size)
-              (comp-grid-backgrounds size (:maze data))
-              (comp-grid-dead-ends size (:maze data))
-              (comp-grid-lines size (:maze data)))))))))
+              (if (get-in data [:layers :distance-mash :show])
+                (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) (:maze data)))
+              (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size (:maze data)))
+              (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size (:maze data))))))))))
 
 ;; initializer
 

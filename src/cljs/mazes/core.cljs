@@ -1,6 +1,7 @@
 (ns ^:figwheel-always mazes.core
   (:require-macros [wilkerdev.util.macros :refer [bench]])
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [clojure.set :as set]))
 
 (enable-console-print!)
 
@@ -18,6 +19,9 @@
 
 (defn visit-cell [grid cell]
   (update-in grid [:links cell] #(or % #{})))
+
+(defn visited-cell? [grid cell]
+  (contains? (:links grid) cell))
 
 (defn link-cells [grid cell-a cell-b]
   (assert (not (nil? cell-a)))
@@ -62,11 +66,17 @@
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 
-(defn cell-neighbors [cell]
-  [(north cell) (east cell) (south cell) (west cell)])
+(defn cell-neighbors [cell] #{(north cell) (east cell) (south cell) (west cell)})
+
+(defn valid-neighbors [grid cell]
+  (->> (cell-neighbors cell)
+       (filter (partial valid-pos? grid))
+       (set)))
 
 (defn accessible-neighbors [grid cell]
-  (filter (partial linked-to? grid cell) (cell-neighbors cell)))
+  (->> (cell-neighbors cell)
+       (filter (partial linked-to? grid cell))
+       (set)))
 
 ;; maze generators
 
@@ -110,8 +120,7 @@
     (loop [{:keys [links] :as grid} grid
            cell (rand-cell grid)]
       (if (< (count links) cells-n)
-        (let [next (rand-nth (->> (cell-neighbors cell)
-                                  (filter (partial valid-pos? grid))))]
+        (let [next (rand-nth (valid-neighbors grid cell))]
           (recur (if (contains? links next) grid (link-cells grid cell next))
                  next))
         grid))))
@@ -131,11 +140,31 @@
           (contains? links path-last) (recur (link-path grid path) [])
 
           :else
-          (let [next (rand-nth (->> (cell-neighbors path-last)
-                                    (filter (partial valid-pos? grid))))]
+          (let [next (rand-nth (valid-neighbors grid path-last))]
             (if-let [self-hit (index-of next path)]
               (recur grid (subvec path 0 (inc self-hit)))
               (recur grid (conj path next)))))))))
+
+(defn gen-hunt-and-kill [grid]
+  (let [cells-n (count-cells grid)]
+    (loop [{:keys [links] :as grid} grid
+           cell (rand-cell grid)]
+      (if (= (count links) cells-n)
+        grid
+        (if-let [next-options (->> (valid-neighbors grid cell)
+                                   (remove (partial visited-cell? grid))
+                                   seq)]
+          (let [next (rand-nth next-options)]
+            (recur (link-cells grid cell next) next))
+          (let [[next linkable-neighbors]
+                (->> (unvisited-cells grid)
+                     (keep (fn [c]
+                             (let [neighbors (valid-neighbors grid c)
+                                   connections (set/intersection links neighbors)]
+                               (if (seq connections)
+                                 [c (vec connections)]))))
+                     first)]
+            (recur (link-cells grid next (rand-nth linkable-neighbors)) next)))))))
 
 ;; solvers
 

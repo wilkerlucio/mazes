@@ -39,6 +39,10 @@
   (is (= (m/visit-cell {:links {[0 1] #{[0 2]}}} [0 1])
          {:links {[0 1] #{[0 2]}}})))
 
+(deftest test-visited-cell?
+  (is (true? (m/visited-cell? {:links {[0 0] #{}}} [0 0])))
+  (is (false? (m/visited-cell? {:links {[0 0] #{}}} [0 1]))))
+
 (deftest test-link-cells
   (is (= (m/link-cells (m/make-grid 4 3) [0 0] [0 1])
          {:rows 4 :columns 3 :links {[0 0] #{[0 1]}
@@ -95,18 +99,23 @@
 (deftest test-south (is (= (m/south [0 0]) [1 0])))
 
 (deftest test-cell-neighbors
-  (is (= (m/cell-neighbors [1 1]) [[0 1] [1 2] [2 1] [1 0]])))
+  (is (= (m/cell-neighbors [1 1]) #{[0 1] [1 2] [2 1] [1 0]})))
+
+(deftest test-valid-neighbors
+  (is (= (m/valid-neighbors grid44 [0 0]) #{[0 1] [1 0]}))
+  (is (= (m/valid-neighbors grid44 [1 0]) #{[0 0] [1 1] [2 0]}))
+  (is (= (m/valid-neighbors grid44 [1 1]) #{[0 1] [1 2] [2 1] [1 0]})))
 
 (deftest test-accessible-neighbors
-  (is (= (m/accessible-neighbors simple-maze [0 0]) [[0 1] [1 0]]))
-  (is (= (m/accessible-neighbors simple-maze [0 1]) [[0 2] [0 0]]))
-  (is (= (m/accessible-neighbors simple-maze [0 2]) [[1 2] [0 1]]))
-  (is (= (m/accessible-neighbors simple-maze [1 0]) [[0 0] [2 0]]))
-  (is (= (m/accessible-neighbors simple-maze [1 1]) [[1 2] [2 1]]))
-  (is (= (m/accessible-neighbors simple-maze [1 2]) [[0 2] [1 1]]))
-  (is (= (m/accessible-neighbors simple-maze [2 0]) [[1 0]]))
-  (is (= (m/accessible-neighbors simple-maze [2 1]) [[1 1] [2 2]]))
-  (is (= (m/accessible-neighbors simple-maze [2 2]) [[2 1]])))
+  (is (= (m/accessible-neighbors simple-maze [0 0]) #{[0 1] [1 0]}))
+  (is (= (m/accessible-neighbors simple-maze [0 1]) #{[0 2] [0 0]}))
+  (is (= (m/accessible-neighbors simple-maze [0 2]) #{[1 2] [0 1]}))
+  (is (= (m/accessible-neighbors simple-maze [1 0]) #{[0 0] [2 0]}))
+  (is (= (m/accessible-neighbors simple-maze [1 1]) #{[1 2] [2 1]}))
+  (is (= (m/accessible-neighbors simple-maze [1 2]) #{[0 2] [1 1]}))
+  (is (= (m/accessible-neighbors simple-maze [2 0]) #{[1 0]}))
+  (is (= (m/accessible-neighbors simple-maze [2 1]) #{[1 1] [2 2]}))
+  (is (= (m/accessible-neighbors simple-maze [2 2]) #{[2 1]})))
 
 (deftest test-binary-tree-cell
   (is (= (m/binary-tree-link-cell grid44 [0 3] :north) nil  ))

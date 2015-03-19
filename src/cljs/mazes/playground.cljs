@@ -71,6 +71,8 @@
                     :value m/gen-aldous-broder}
     :binary-tree {:label "Binary Tree"
                   :value m/gen-binary-tree}
+    :hunt-and-kill {:label "Hunt and Kill"
+                    :value m/gen-hunt-and-kill}
     :sidewinder {:label "Sidewinder"
                  :value m/gen-sidewinder}
     :wilson {:label "Wilson's"

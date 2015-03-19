@@ -78,6 +78,8 @@
        (filter (partial linked-to? grid cell))
        (set)))
 
+(defn dead-ends [{:keys [links]}] (filter (fn [[_ v]] (= (count v) 1)) links))
+
 ;; maze generators
 
 (defn binary-tree-link-cell [{:keys [rows columns] :as grid} [y x :as cell] direction]

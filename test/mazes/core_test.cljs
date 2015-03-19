@@ -117,6 +117,9 @@
   (is (= (m/accessible-neighbors simple-maze [2 1]) #{[1 1] [2 2]}))
   (is (= (m/accessible-neighbors simple-maze [2 2]) #{[2 1]})))
 
+(deftest test-dead-ends
+  (is (= (m/dead-ends simple-maze) [[[2 2] #{[2 1]}] [[2 0] #{[1 0]}]])))
+
 (deftest test-binary-tree-cell
   (is (= (m/binary-tree-link-cell grid44 [0 3] :north) nil  ))
   (is (= (m/binary-tree-link-cell grid44 [0 0] :north) [0 1]))

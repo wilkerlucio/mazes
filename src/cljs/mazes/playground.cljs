@@ -11,7 +11,7 @@
 
 (defonce app-state
   (atom {:grid-size      10
-         :generator      :binary-tree
+         :generator      :recursive-backtracker
          :marker-builder :random-point
          :colorizer      :blue-to-red}))
 

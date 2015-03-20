@@ -21,7 +21,7 @@
    :layers         {:distance-mash {:show true
                                     :color-fn :blue-to-red}
                     :grid-lines    {:show true}
-                    :dead-ends     {:show true}}})
+                    :dead-ends     {:show false}}})
 
 (defonce app-state
   (atom initial-state))
@@ -31,13 +31,15 @@
     :aldous-broder {:label "Aldous Broder"
                     :value m/gen-aldous-broder}
     :binary-tree {:label "Binary Tree"
-                  :value m/gen-binary-tree}
+                  :value m/gen-binary-tree
+                  :disable? #(apply not= (vals (:grid-size %)))}
     :hunt-and-kill {:label "Hunt and Kill"
                     :value m/gen-hunt-and-kill}
     :recursive-backtracker {:label "Recursive Backtracker"
                             :value m/gen-recursive-backtracker}
     :sidewinder {:label "Sidewinder"
-                 :value m/gen-sidewinder}
+                 :value m/gen-sidewinder
+                 :disable? #(apply not= (vals (:grid-size %)))}
     :wilson {:label "Wilson's"
              :value m/gen-wilson}))
 
@@ -78,8 +80,9 @@
   [(* x cell-size) (* y cell-size)
    (* (inc x) cell-size) (* (inc y) cell-size)])
 
-(defn impl->options [m]
-  (map (fn [[k v]] {:label (:label v) :value (name k)}) m))
+(defn impl->options [m data]
+  (map (fn [[k v]] {:label     (:label v) :value (name k)
+                    :disabled? ((get v :disable? (fn [_] false)) data)}) m))
 
 (defn attrs [base & removals]
   (clj->js (apply dissoc base removals)))
@@ -124,7 +127,7 @@
 
 ;; components
 
-(defn comp-option [{:keys [label value]}] (dom/option #js {:value value} label))
+(defn comp-option [{:keys [label value disabled?]}] (dom/option #js {:value value :disabled disabled?} label))
 
 (defn comp-select [{:keys [options] :as attributes}]
   (apply dom/select (attrs attributes :options)
@@ -199,6 +202,46 @@
   (set! (.-ondragover js/window) #(.preventDefault %))
   (set! (.-ondrop js/window) #(.preventDefault %)))
 
+(defn maze-services [data owner]
+  (let [pub (om/get-state owner :pub)
+        bus (om/get-state owner :bus)]
+
+    (go-sub pub :update-generator [_ generator]
+      (om/update! data :generator (keyword generator))
+      (put! bus [:generate-maze]))
+
+    (go-sub pub :update-grid-size [_ axis size]
+      (let [n (or (js/parseInt size) 0)]
+        (om/update! (om/get-props owner) [:grid-size axis] (fit-in-range n 1 100))))
+
+    (go-sub pub :update-layer [_ layer prop value]
+      (om/transact! data #(assoc-in % [:layers layer prop] value)))
+
+    (go-sub pub :mask-dropped [_ file]
+      (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
+                                            (png-mask) <!)]
+        (om/transact! data (fn [d]
+                             (-> (assoc d :mask mask)
+                                 (assoc-in [:grid-size :rows] rows)
+                                 (assoc-in [:grid-size :columns] columns))))
+        (<! (async/timeout 1))
+        (put! bus [:generate-maze])))
+
+    (go-sub pub :generate-maze [_]
+      (try
+        (let [cur-data (om/get-props owner)
+              _ (print "generating grid" (:mask cur-data))
+              {:keys [columns rows] :as grid-size} (:grid-size cur-data)
+              _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
+              generator (get-in opt-algorithms [(:generator cur-data) :value])
+              maze (bench "generating maze" (-> (m/make-grid rows columns)
+                                                (update :mask into (:mask cur-data))
+                                                generator))
+              marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
+          (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze)))))
+        (catch js/Error e
+          (print "Error generating maze: " (.-message e)))))))
+
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
     om/IDisplayName (display-name [_] "Maze Playground")
@@ -208,41 +251,7 @@
             pub (async/pub bus first)]
         {:bus bus :pub pub}))
     om/IWillMount
-    (will-mount [_]
-      (let [pub (om/get-state owner :pub)
-            bus (om/get-state owner :bus)]
-
-        (go-sub pub :update-generator [_ generator]
-          (om/update! data :generator (keyword generator))
-          (put! bus [:generate-maze]))
-
-        (go-sub pub :update-grid-size [_ axis grid-size]
-          (let [n (or (js/parseInt grid-size) 0)]
-            (om/update! data [:grid-size axis] (fit-in-range n 1 100))))
-
-        (go-sub pub :update-layer [_ layer prop value]
-          (om/transact! data #(assoc-in % [:layers layer prop] value)))
-
-        (go-sub pub :mask-dropped [_ file]
-          (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
-                                                (png-mask) <!)]
-            (om/update! data [:mask] mask)
-            (put! bus [:update-grid-size :rows rows])
-            (put! bus [:update-grid-size :columns columns])
-            (put! bus [:generate-maze])))
-
-        (go-sub pub :generate-maze [_]
-          (try
-            (let [{:keys [columns rows] :as grid-size} (:grid-size @app-state)
-                  _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
-                  generator (get-in opt-algorithms [(:generator @app-state) :value])
-                  maze (bench "generating maze" (-> (m/make-grid rows columns)
-                                                    (update :mask into (:mask @app-state))
-                                                    generator))
-                  marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
-              (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze)))))
-            (catch js/Error e
-              (print "Error generating maze: " (.-message e)))))))
+    (will-mount [_] (maze-services data owner))
 
     om/IRender
     (render [_]
@@ -252,7 +261,7 @@
         (dom/div nil
           (dom/label #js {:style #js {:display "block"}}
             "Generator algorithm: "
-            (comp-select {:value    (name generator) :options (impl->options opt-algorithms)
+            (comp-select {:value    (name generator) :options (impl->options opt-algorithms data)
                           :onChange #(put! bus [:update-generator (target-value %)])}))
           (dom/label #js {:style #js {:display "block"}}
             "Grid size: "
@@ -266,7 +275,7 @@
           (dom/div nil
             "Distance Gradient layer: "
             (comp-layer-toggler :distance-mash flux)
-            (comp-select {:value    (name color-fn) :options (impl->options opt-color-functions)
+            (comp-select {:value    (name color-fn) :options (impl->options opt-color-functions data)
                           :onChange #(put! bus [:update-layer :distance-mash :color-fn (keyword (target-value %))])}))
           (dom/div nil
             "Dead Ends layer: "

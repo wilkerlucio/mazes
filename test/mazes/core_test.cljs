@@ -14,10 +14,14 @@
 ; |   |       |
 ; +---+---+---+
 (def simple-maze
-  {:rows 3, :columns 3
-   :links {[0 1] #{[0 0] [0 2]} [1 2] #{[1 1] [0 2]} [0 0] #{[0 1] [1 0]} [2 2] #{[2 1]}
-           [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
-           [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}}})
+  (-> (m/make-grid 3 3)
+      (assoc :links {[0 1] #{[0 0] [0 2]} [1 2] #{[1 1] [0 2]} [0 0] #{[0 1] [1 0]} [2 2] #{[2 1]}
+                     [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
+                     [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}})))
+
+(def masked-maze
+  (-> (m/make-grid 3 3)
+      (assoc :mask #{[1 1]})))
 
 (deftest test-index-of
   (is (= (m/index-of :a [:a :b :c]) 0))
@@ -27,11 +31,13 @@
 
 (deftest test-make-grid
   (is (= (m/make-grid 4 3)
-         {:rows 4 :columns 3 :links {}})))
+         {:rows 4 :columns 3 :links {} :mask #{}})))
 
 (deftest test-count-cells
   (is (= (m/count-cells grid44) 16))
-  (is (= (m/count-cells simple-maze) 9)))
+  (is (= (m/count-cells simple-maze) 9))
+  (is (= (m/count-cells masked-maze) 8))
+  (is (= (m/count-cells (update masked-maze :mask conj [10 10])) 8)))
 
 (deftest test-visit-cell
   (is (= (m/visit-cell {:links {}} [0 1])
@@ -44,18 +50,18 @@
   (is (false? (m/visited-cell? {:links {[0 0] #{}}} [0 1]))))
 
 (deftest test-link-cells
-  (is (= (m/link-cells (m/make-grid 4 3) [0 0] [0 1])
-         {:rows 4 :columns 3 :links {[0 0] #{[0 1]}
-                                     [0 1] #{[0 0]}}}))
+  (is (= (:links (m/link-cells (m/make-grid 4 3) [0 0] [0 1]))
+         {[0 0] #{[0 1]}
+          [0 1] #{[0 0]}}))
   (is (thrown-with-msg? js/Error #"cell-a" (m/link-cells grid44 nil [1 3])))
   (is (thrown-with-msg? js/Error #"cell-b" (m/link-cells grid44 [1 2] nil))))
 
 (deftest test-link-path
-  (is (= (m/link-path grid44 [[0 0] [0 1] [1 1] [2 1]])
-         {:rows 4, :columns 4, :links {[0 0] #{[0 1]}
-                                       [0 1] #{[0 0] [1 1]}
-                                       [1 1] #{[0 1] [2 1]}
-                                       [2 1] #{[1 1]}}})))
+  (is (= (:links (m/link-path grid44 [[0 0] [0 1] [1 1] [2 1]]))
+         {[0 0] #{[0 1]}
+          [0 1] #{[0 0] [1 1]}
+          [1 1] #{[0 1] [2 1]}
+          [2 1] #{[1 1]}})))
 
 (deftest test-linked-to?
   (let [linked-grid (m/link-cells grid44 [1 2] [1 3])]
@@ -65,29 +71,38 @@
     (is (false? (m/linked-to? linked-grid nil [1 1])))
     (is (false? (m/linked-to? linked-grid [1 2] nil)))))
 
-(deftest test-grid-cell
-  (is (= (m/cell grid44 [1 2])
-         {:x 2 :y 1 :links #{}}))
-  (is (= (m/cell grid44 [5 3]) nil))
-
-  (let [linked-grid (m/link-cells grid44 [1 2] [1 3])]
-    (is (= (m/cell linked-grid [1 2])
-           {:x 2 :y 1 :links #{[1 3]}}))
-    (is (= (m/cell linked-grid [1 3])
-           {:x 3 :y 1 :links #{[1 2]}}))))
+(deftest test-valid-pos?
+  (is (true? (m/valid-pos? grid44 [0 0])))
+  (is (true? (m/valid-pos? grid44 [1 1])))
+  (is (true? (m/valid-pos? grid44 [3 3])))
+  (is (false? (m/valid-pos? grid44 [-1 0])))
+  (is (false? (m/valid-pos? grid44 [0 -1])))
+  (is (false? (m/valid-pos? grid44 [0 4])))
+  (is (false? (m/valid-pos? grid44 [4 3])))
+  (is (false? (m/valid-pos? masked-maze [1 1]))))
 
 (deftest test-rand-cell
   (let [[y x] (m/rand-cell grid44)]
     (is (and (>= y 0) (< y 4)))
-    (is (and (>= x 0) (< x 4)))))
+    (is (and (>= x 0) (< x 4)))
+    (is (false? (contains? (set (repeatedly 100 (partial m/rand-cell masked-maze)))
+                           [1 1])))))
 
 (deftest test-cells-seq
   (is (= (m/cells-seq (m/make-grid 2 2))
-         [[0 0] [0 1] [1 0] [1 1]])))
+         [[0 0] [0 1] [1 0] [1 1]]))
+  (is (= (m/cells-seq masked-maze)
+         [[0 0] [0 1] [0 2]
+          [1 0]       [1 2]
+          [2 0] [2 1] [2 2]])))
 
 (deftest test-rows-seq
   (is (= (m/rows-seq (m/make-grid 2 2))
-         [[[0 0] [0 1]] [[1 0] [1 1]]])))
+         [[[0 0] [0 1]] [[1 0] [1 1]]]))
+  (is (= (m/rows-seq masked-maze)
+         [[[0 0] [0 1] [0 2]]
+          [[1 0]       [1 2]]
+          [[2 0] [2 1] [2 2]]])))
 
 (deftest test-unvisited-cells
   (is (= (m/unvisited-cells (assoc (m/make-grid 2 2) :links {[1 1] #{} [0 1] #{}}))
@@ -199,5 +214,11 @@
 (deftest test-longest-path
   (is (= (m/longest-path simple-maze)
          [[2 0] [1 0] [0 0] [0 1] [0 2] [1 2] [1 1] [2 1] [2 2]])))
+
+(deftest test-ascii-mask
+  (is (= (m/ascii-mask "X...X"
+                       "..X.."
+                       "X...X")
+         #{[0 0] [0 4] [1 2] [2 0] [2 4]})))
 
 (t/test-ns 'mazes.core-test)

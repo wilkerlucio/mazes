@@ -13,9 +13,15 @@
 ;; grid
 
 (defn make-grid [rows columns]
-  {:rows rows :columns columns :links {}})
+  {:rows rows :columns columns :links {} :mask #{}})
 
-(defn count-cells [{:keys [rows columns]}] (* rows columns))
+(defn valid-pos? [{:keys [rows columns mask]} [y x :as cell]]
+  (and (>= x 0) (< x columns)
+       (>= y 0) (< y rows)
+       (not (contains? mask cell))))
+
+(defn count-cells [{:keys [rows columns mask] :as grid}]
+  (-> (* rows columns) (- (count (filter (partial valid-pos? (assoc grid :mask #{})) mask)))))
 
 (defn visit-cell [grid cell]
   (update-in grid [:links cell] #(or % #{})))
@@ -38,28 +44,27 @@
 (defn linked-to? [grid cell-a cell-b]
   (contains? (get-in grid [:links cell-a] #{}) cell-b))
 
-(defn valid-pos? [{:keys [rows columns]} [y x]]
-  (and (>= x 0) (< x columns)
-       (>= y 0) (< y rows)))
+(defn rand-cell [{:keys [rows columns mask]}]
+  (loop []
+    (let [cell [(rand-int rows) (rand-int columns)]]
+      (if (contains? mask cell) (recur) cell))))
 
-(defn cell [grid [y x :as cell]]
-  (if (valid-pos? grid cell)
-    {:x x :y y :links (get-in grid [:links cell] #{})}))
-
-(defn rand-cell [{:keys [rows columns]}] [(rand-int rows) (rand-int columns)])
-
-(defn cells-seq [{:keys [rows columns]}]
-  (for [y (range rows) x (range columns)]
-    [y x]))
+(defn cells-seq [{:keys [rows columns] :as grid}]
+  (for [y (range rows) x (range columns)
+        :let [cell [y x]]
+        :when (valid-pos? grid cell)]
+    cell))
 
 (defn unvisited-cells [{:keys [links] :as grid}]
   (->> (cells-seq grid)
        (remove (partial contains? links))))
 
-(defn rows-seq [{:keys [rows columns]}]
+(defn rows-seq [{:keys [rows columns] :as grid}]
   (for [y (range rows)]
-    (for [x (range columns)]
-      [y x])))
+    (for [x (range columns)
+          :let [cell [y x]]
+          :when (valid-pos? grid cell)]
+      cell)))
 
 (defn east  [[y x]] [y (inc x)])
 (defn west  [[y x]] [y (dec x)])
@@ -232,3 +237,12 @@
                  (str "|" (str/join "" (map first parts)) "\n"
                       "+" (str/join "" (map second parts)) "\n"))]
      (apply str header lines))))
+
+; other
+
+(defn ascii-mask [& lines]
+  (->> (map-indexed (fn [row line] (map-indexed #(if (= "X" %2) [row %]) line))
+                    lines)
+       (flatten1)
+       (filter identity)
+       (set)))

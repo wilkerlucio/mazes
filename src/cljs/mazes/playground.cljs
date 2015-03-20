@@ -1,5 +1,6 @@
 (ns mazes.playground
-  (:require-macros [wilkerdev.util.macros :refer [bench go-sub go-sub*]])
+  (:require-macros [wilkerdev.util.macros :refer [bench go-sub go-sub*]]
+                   [cljs.core.async.macros :refer [go]])
   (:require [mazes.core :refer [cells-seq valid-pos? linked-to? north east south west
                                 make-grid rand-cell dijkstra-enumerate farthest-point]
              :as m]
@@ -10,7 +11,7 @@
 ;; state and data
 
 (defonce app-state
-  (atom {:grid-size      20
+  (atom {:grid-size      10
          :generator      :recursive-backtracker
          :marker-builder :random-point
          :colorizer      :blue-to-red
@@ -137,17 +138,31 @@
 
         (go-sub pub :update-grid-size [_ grid-size]
           (let [n (or (js/parseInt grid-size) 0)]
-            (om/update! data :grid-size (fit-in-range n 2 100))))
+            (om/update! data :grid-size (fit-in-range n 1 100))))
 
         (go-sub pub :update-layer [_ layer prop value]
           (om/transact! data #(assoc-in % [:layers layer prop] value)))
 
         (go-sub pub :generate-maze [_]
-          (let [grid-size (:grid-size @app-state)
-                generator (get-in opt-algorithms [(:generator @app-state) :value])
-                maze (bench "generating maze" (-> (m/make-grid grid-size grid-size) generator))
-                marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
-            (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze))))))))
+          (try
+            (let [grid-size (:grid-size @app-state)
+                  generator (get-in opt-algorithms [(:generator @app-state) :value])
+                  mask (m/ascii-mask "X........X"
+                                     "....XX...."
+                                     "...XXXX..."
+                                     "....XX...."
+                                     "X........X"
+                                     "X........X"
+                                     "....XX...."
+                                     "...XXXX..."
+                                     "....XX...."
+                                     "X........X")
+                  maze (bench "generating maze" (-> (m/make-grid grid-size grid-size)
+                                                    (update :mask into mask)
+                                                    generator))
+                  marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
+              (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze)))))
+            (catch js/Error _)))))
 
     om/IRender
     (render [_]
@@ -161,7 +176,7 @@
                           :onChange #(put! bus [:update-generator (target-value %)])}))
           (dom/label #js {:style #js {:display "block"}}
             "Grid size: "
-            (dom/input #js {:type     "number" :value grid-size :min 4 :max 100
+            (dom/input #js {:type     "number" :value grid-size :min 1 :max 100
                             :onChange #(put! bus [:update-grid-size (target-value %)])}))
           (dom/button #js {:onClick #(put! bus [:generate-maze])
                            :style #js {:margin-top "10px"}} "Generate maze")

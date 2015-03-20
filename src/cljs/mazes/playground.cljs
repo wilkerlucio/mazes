@@ -230,7 +230,6 @@
     (go-sub pub :generate-maze [_]
       (try
         (let [cur-data (om/get-props owner)
-              _ (print "generating grid" (:mask cur-data))
               {:keys [columns rows] :as grid-size} (:grid-size cur-data)
               _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
               generator (get-in opt-algorithms [(:generator cur-data) :value])

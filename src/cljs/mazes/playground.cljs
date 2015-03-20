@@ -146,6 +146,7 @@
         (go-sub pub :generate-maze [_]
           (try
             (let [grid-size (:grid-size @app-state)
+                  _ (assert (> grid-size 1) "Grid size must be bigger than 1")
                   generator (get-in opt-algorithms [(:generator @app-state) :value])
                   mask (m/ascii-mask "X........X"
                                      "....XX...."
@@ -162,7 +163,8 @@
                                                     generator))
                   marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
               (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze)))))
-            (catch js/Error _)))))
+            (catch js/Error e
+              (print "Error generating maze: " (.-message e)))))))
 
     om/IRender
     (render [_]

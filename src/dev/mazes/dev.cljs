@@ -7,7 +7,7 @@
             [cljs.core.async :refer [put!]]))
 
 (defn refresh []
-  (mazes.playground/build-at (.getElementById js/document "app-container")))
+  (mazes.playground/build-at (.-body js/document)))
 
 (fw/start {
            :websocket-url "ws://localhost:3449/figwheel-ws"

@@ -48,7 +48,7 @@
 
 ; manipulation
 
-(defn create-element! [name]
+(defn create-element [name]
   (dom/createElement name))
 
 (defn insert-after! [el target]

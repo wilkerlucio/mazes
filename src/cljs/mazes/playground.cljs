@@ -6,19 +6,25 @@
              :as m]
             [om.core :as om]
             [om.dom :as dom]
-            [cljs.core.async :refer [chan put!] :as async]))
+            [cljs.core.async :refer [chan put! <!] :as async]
+            [wilkerdev.util.dom :as domm])
+  (:import [goog.fs FileReader]))
 
 ;; state and data
 
+(def initial-state
+  {:grid-size      {:columns 10 :rows 10}
+   :generator      :recursive-backtracker
+   :marker-builder :random-point
+   :colorizer      :blue-to-red
+   :mask           #{}
+   :layers         {:distance-mash {:show true
+                                    :color-fn :blue-to-red}
+                    :grid-lines    {:show true}
+                    :dead-ends     {:show true}}})
+
 (defonce app-state
-  (atom {:grid-size      10
-         :generator      :recursive-backtracker
-         :marker-builder :random-point
-         :colorizer      :blue-to-red
-         :layers         {:distance-mash {:show     true
-                                          :color-fn :blue-to-red}
-                          :grid-lines    {:show true}
-                          :dead-ends     {:show true}}}))
+  (atom initial-state))
 
 (def opt-algorithms
   (sorted-map
@@ -82,6 +88,35 @@
 
 (defn target-value [e] (.. e -target -value))
 
+(defn load-image [data]
+  (let [c (chan)]
+    (doto (domm/create-element "img")
+      (aset "onload" #(put! c (.-target %)))
+      (aset "src" data))
+    c))
+
+(defn create-canvas [width height]
+  (doto (domm/create-element "canvas")
+    (aset "width" width)
+    (aset "height" height)))
+
+(defn png-mask [png-data]
+  (go
+    (let [img (<! (load-image png-data))
+          width (.-width img) height (.-height img)
+          canvas (create-canvas width height)
+          ctx (.getContext canvas "2d")]
+      (.drawImage ctx img 0 0)
+      (let [mask (->> (.getImageData ctx 0 0 width height)
+                      (.-data)
+                      (array-seq)
+                      (partition 4)                         ; [[r g b a] [r g b a] ...]
+                      (map vector (range))                  ; [[0 [r g b a] [1 [r g b a]] ...]
+                      (filter (fn [[_ [r g b]]] (= 0 r g b))) ; keep blacks
+                      (map (fn [[pos]] [(int (/ pos width)) (mod pos width)]))
+                      (set))]
+        {:rows height :columns width :mask mask}))))
+
 ;; svg helpers
 
 (defn svg-line [x1 y1 x2 y2]
@@ -95,19 +130,23 @@
   (apply dom/select (attrs attributes :options)
          (map comp-option options)))
 
-(defn comp-grid-backgrounds [{:keys [width color-fn]
-                         :or {color-fn color-compute-blue-to-red}}
-                        {:keys [marks columns]}]
+(defn compute-cell-size [{:keys [width height]} {:keys [columns rows]}]
+  (min (/ width columns)
+       (/ height rows)))
+
+(defn comp-grid-backgrounds [{:keys [color-fn] :as dimensions
+                                    :or {color-fn color-compute-blue-to-red}}
+                             {:keys [marks] :as grid}]
   (let [max-distance (get marks (farthest-point marks))
-        cell-size (/ width columns)
+        cell-size (compute-cell-size dimensions grid)
         mark->rect (fn [[cell distance]]
                      (let [[x y] (cell-bounds cell cell-size)]
                        (dom/rect #js {:width cell-size :height cell-size :x x :y y
                                       :style #js {:fill (color-fn (/ distance max-distance))}})))]
     (apply dom/g nil (map mark->rect marks))))
 
-(defn comp-grid-lines [{:keys [width]} {:keys [columns] :as grid}]
-  (let [cell-size (/ width columns)
+(defn comp-grid-lines [dimensions grid]
+  (let [cell-size (compute-cell-size dimensions grid)
         link->line (fn [cell]
                      (let [[x1 y1 x2 y2] (cell-bounds cell cell-size)
                            lines (->> [(if-not (valid-pos? grid (north cell)) [x1 y1 x2 y1])
@@ -119,8 +158,8 @@
                        (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line %) lines))))]
     (apply dom/g nil (map link->line (cells-seq grid)))))
 
-(defn comp-grid-dead-ends [{:keys [width]} {:keys [dead-ends columns]}]
-  (let [cell-size (/ width columns)
+(defn comp-grid-dead-ends [dimensions {:keys [dead-ends] :as grid}]
+  (let [cell-size (compute-cell-size dimensions grid)
         mark->rect (fn [cell]
                      (let [[x y] (cell-bounds cell cell-size)]
                        (dom/rect #js {:width cell-size :height cell-size :x x :y y
@@ -130,6 +169,35 @@
 (defn comp-layer-toggler [layer {:keys [data bus]}]
   (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])
                   :onChange #(put! bus [:update-layer layer :show (.. % -target -checked)])}))
+
+(defn- read-files [e]
+  (->> e
+       .-dataTransfer
+       .-files
+       array-seq))
+
+(defn read-file-as-data-url
+  ([file] (read-file-as-data-url file (chan)))
+  ([file c]
+    (doto (.readAsDataUrl FileReader file)
+      (.then #(put! c %)))
+    c))
+
+(defn file-dropper [[{:keys [onDrop] :as opts} view] _]
+  (reify
+    om/IRender
+    (render [_]
+      (let [attrs (assoc opts :onDrop (fn [e] (.preventDefault e) (onDrop (read-files e)))
+                              :onDragEnter #(.preventDefault %)
+                              :onDragOver  #(.preventDefault %)
+                              :onDragLeave #(.preventDefault %)
+                              :onDragEnd   #(.preventDefault %))]
+        (dom/div (clj->js attrs)
+          view)))))
+
+(defn prevent-global-drop! []
+  (set! (.-ondragover js/window) #(.preventDefault %))
+  (set! (.-ondrop js/window) #(.preventDefault %)))
 
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
@@ -148,20 +216,28 @@
           (om/update! data :generator (keyword generator))
           (put! bus [:generate-maze]))
 
-        (go-sub pub :update-grid-size [_ grid-size]
+        (go-sub pub :update-grid-size [_ axis grid-size]
           (let [n (or (js/parseInt grid-size) 0)]
-            (om/update! data :grid-size (fit-in-range n 1 100))))
+            (om/update! data [:grid-size axis] (fit-in-range n 1 100))))
 
         (go-sub pub :update-layer [_ layer prop value]
           (om/transact! data #(assoc-in % [:layers layer prop] value)))
 
+        (go-sub pub :mask-dropped [_ file]
+          (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
+                                                (png-mask) <!)]
+            (om/update! data [:mask] mask)
+            (put! bus [:update-grid-size :rows rows])
+            (put! bus [:update-grid-size :columns columns])
+            (put! bus [:generate-maze])))
+
         (go-sub pub :generate-maze [_]
           (try
-            (let [grid-size (:grid-size @app-state)
-                  _ (assert (> grid-size 1) "Grid size must be bigger than 1")
+            (let [{:keys [columns rows] :as grid-size} (:grid-size @app-state)
+                  _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
                   generator (get-in opt-algorithms [(:generator @app-state) :value])
-                  maze (bench "generating maze" (-> (m/make-grid grid-size grid-size)
-                                                    (update :mask into grid-mask)
+                  maze (bench "generating maze" (-> (m/make-grid rows columns)
+                                                    (update :mask into (:mask @app-state))
                                                     generator))
                   marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
               (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze)))))
@@ -180,10 +256,12 @@
                           :onChange #(put! bus [:update-generator (target-value %)])}))
           (dom/label #js {:style #js {:display "block"}}
             "Grid size: "
-            (dom/input #js {:type     "number" :value grid-size :min 1 :max 100
-                            :onChange #(put! bus [:update-grid-size (target-value %)])}))
+            (dom/input #js {:type     "number" :value (:columns grid-size) :min 1 :max 100
+                            :onChange #(put! bus [:update-grid-size :columns (target-value %)])})
+            (dom/input #js {:type     "number" :value (:rows grid-size) :min 1 :max 100
+                            :onChange #(put! bus [:update-grid-size :rows (target-value %)])}))
           (dom/button #js {:onClick #(put! bus [:generate-maze])
-                           :style #js {:margin-top "10px"}} "Generate maze")
+                           :style #js {:marginTop "10px"}} "Generate maze")
 
           (dom/div nil
             "Distance Gradient layer: "
@@ -200,14 +278,16 @@
           (dom/hr nil)
 
           (let [size {:width 600 :height 600}]
-            (dom/svg (clj->js size)
-              (if (get-in data [:layers :distance-mash :show])
-                (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) (:maze data)))
-              (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size (:maze data)))
-              (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size (:maze data))))))))))
+            (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
+              (dom/svg (clj->js size)
+                (if (get-in data [:layers :distance-mash :show])
+                  (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) (:maze data)))
+                (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size (:maze data)))
+                (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size (:maze data))))])))))))
 
 ;; initializer
 
 (defn build-at [node]
+  (prevent-global-drop!)
   (let [root (om/root maze-playground app-state {:target node})]
     (om/get-state root)))

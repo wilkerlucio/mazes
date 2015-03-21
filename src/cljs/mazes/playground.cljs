@@ -273,8 +273,11 @@
               maze (bench "generating maze" (-> (m/make-grid rows columns)
                                                 (update :mask into (:mask cur-data))
                                                 generator))
-              marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))]
-          (om/update! data :maze (assoc maze :marks marks :dead-ends (bench "dead ends" (m/dead-ends maze)))))
+              marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))
+              dead-ends (bench "dead ends" (m/dead-ends maze))
+              grid (-> (assoc maze :marks marks :dead-ends dead-ends)
+                       (m/serialize-grid))]
+          (om/update! data :grid grid))
         (catch js/Error e
           (print "Error generating maze: " (.-message e)))))))
 
@@ -322,15 +325,16 @@
 
           (dom/hr nil)
 
-          (let [size {:width 600 :height 600}
-                maze (:maze data)]
-            (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
-              (dom/svg (clj->js size)
-                (if (get-in data [:layers :distance-mash :show])
-                  (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) maze))
-                (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size maze))
-                (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size maze))
-                (comp-polar-grid size maze))])))))))
+          (if-let [grid (:grid data)]
+            (let [size {:width 600 :height 600}
+                  grid (m/unserialize-grid grid)]
+              (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
+                                      (dom/svg (clj->js size)
+                                        (if (get-in data [:layers :distance-mash :show])
+                                          (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) grid))
+                                        #_ (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size maze))
+                                        (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size grid))
+                                        #_ (comp-polar-grid size maze))]))))))))
 
 ;; initializer
 

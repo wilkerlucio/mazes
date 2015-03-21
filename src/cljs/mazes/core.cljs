@@ -5,23 +5,72 @@
 
 (enable-console-print!)
 
+(defprotocol IHaveCells
+  (cells-seq [this])
+  (valid-pos? [this cell])
+  (count-cells [this])
+  (rand-cell [this])
+  (cell-neighbors [this cell]))
+
+(defprotocol IGridSerialize
+  (grid-type-key [this]))
+
+(defn serialize-grid [grid]
+  (-> (into {} grid)
+      (assoc :grid-type (grid-type-key grid))))
+
+(defmulti unserialize-grid* :grid-type)
+
+(defn unserialize-grid [grid]
+  (-> (unserialize-grid* grid)
+      (dissoc :grid-type)))
+
 ;; util
 
 (defn index-of [value coll]
   (first (keep-indexed #(if (= %2 value) %1) coll)))
 
-;; grid
+;; rectangular grid
 
-(defn make-grid [rows columns]
-  {:rows rows :columns columns :links {} :mask #{}})
+(defn east  [[y x]] [y (inc x)])
+(defn west  [[y x]] [y (dec x)])
+(defn north [[y x]] [(dec y) x])
+(defn south [[y x]] [(inc y) x])
 
-(defn valid-pos? [{:keys [rows columns mask]} [y x :as cell]]
-  (and (>= x 0) (< x columns)
-       (>= y 0) (< y rows)
-       (not (contains? mask cell))))
+(defrecord RectangularGrid [rows columns links mask]
+  IHaveCells
+  (valid-pos? [{:keys [rows columns mask]} [y x :as cell]]
+    (and (>= x 0) (< x columns)
+         (>= y 0) (< y rows)
+         (not (contains? mask cell))))
 
-(defn count-cells [{:keys [rows columns mask] :as grid}]
-  (-> (* rows columns) (- (count (filter (partial valid-pos? (assoc grid :mask #{})) mask)))))
+  (cells-seq [{:keys [rows columns] :as grid}]
+    (for [y (range rows) x (range columns)
+          :let [cell [y x]]
+          :when (valid-pos? grid cell)]
+      cell))
+
+  (count-cells [{:keys [rows columns mask] :as grid}]
+    (-> (* rows columns) (- (count (filter (partial valid-pos? (assoc grid :mask #{})) mask)))))
+
+  (rand-cell [{:keys [rows columns mask]}]
+    (loop []
+      (let [cell [(rand-int rows) (rand-int columns)]]
+        (if (contains? mask cell) (recur) cell))))
+
+  (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)})
+
+  IGridSerialize
+  (grid-type-key [_] ::rectangular))
+
+(defn make-grid
+  ([attrs] (merge (make-grid 0 0) attrs))
+  ([rows columns]
+   (RectangularGrid. rows columns {} #{})))
+
+(defmethod unserialize-grid* ::rectangular [attrs] (make-grid attrs))
+
+;; common grid functions
 
 (defn visit-cell [grid cell]
   (update-in grid [:links cell] #(or % #{})))
@@ -44,17 +93,6 @@
 (defn linked-to? [grid cell-a cell-b]
   (contains? (get-in grid [:links cell-a] #{}) cell-b))
 
-(defn rand-cell [{:keys [rows columns mask]}]
-  (loop []
-    (let [cell [(rand-int rows) (rand-int columns)]]
-      (if (contains? mask cell) (recur) cell))))
-
-(defn cells-seq [{:keys [rows columns] :as grid}]
-  (for [y (range rows) x (range columns)
-        :let [cell [y x]]
-        :when (valid-pos? grid cell)]
-    cell))
-
 (defn unvisited-cells [{:keys [links] :as grid}]
   (->> (cells-seq grid)
        (remove (partial contains? links))))
@@ -66,20 +104,13 @@
           :when (valid-pos? grid cell)]
       cell)))
 
-(defn east  [[y x]] [y (inc x)])
-(defn west  [[y x]] [y (dec x)])
-(defn north [[y x]] [(dec y) x])
-(defn south [[y x]] [(inc y) x])
-
-(defn cell-neighbors [cell] #{(north cell) (east cell) (south cell) (west cell)})
-
 (defn valid-neighbors [grid cell]
-  (->> (cell-neighbors cell)
+  (->> (cell-neighbors grid cell)
        (filter (partial valid-pos? grid))
        (set)))
 
 (defn accessible-neighbors [grid cell]
-  (->> (cell-neighbors cell)
+  (->> (cell-neighbors grid cell)
        (filter (partial linked-to? grid cell))
        (set)))
 

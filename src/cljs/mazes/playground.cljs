@@ -270,14 +270,13 @@
               {:keys [columns rows] :as grid-size} (:grid-size cur-data)
               _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
               generator (get-in opt-algorithms [(:generator cur-data) :value])
-              maze (bench "generating maze" (-> (m/make-grid rows columns)
+              grid (bench "generating maze" (-> (m/make-grid rows columns)
                                                 (update :mask into (:mask cur-data))
                                                 generator))
-              marks (bench "generating marks" (-> (m/dijkstra-enumerate maze (m/rand-cell maze))))
-              dead-ends (bench "dead ends" (m/dead-ends maze))
-              grid (-> (assoc maze :marks marks :dead-ends dead-ends)
-                       (m/serialize-grid))]
-          (om/update! data :grid grid))
+              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
+              dead-ends (bench "dead ends" (m/dead-ends grid))]
+          (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
+                                     (m/serialize-grid))))
         (catch js/Error e
           (print "Error generating maze: " (.-message e)))))))
 
@@ -332,7 +331,7 @@
                                       (dom/svg (clj->js size)
                                         (if (get-in data [:layers :distance-mash :show])
                                           (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) grid))
-                                        #_ (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size maze))
+                                        (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size grid))
                                         (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size grid))
                                         #_ (comp-polar-grid size maze))]))))))))
 

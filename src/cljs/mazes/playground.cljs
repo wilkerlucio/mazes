@@ -28,6 +28,8 @@
 
 (def opt-algorithms
   (sorted-map
+    :none {:label "None"
+           :value identity}
     :aldous-broder {:label "Aldous Broder"
                     :value m/gen-aldous-broder}
     :binary-tree {:label "Binary Tree"
@@ -169,6 +171,41 @@
                                       :style #js {:fill "rgba(255, 255, 0, 0.3)"}})))]
     (apply dom/g nil (map mark->rect (keys dead-ends)))))
 
+(defn grid-polar-theta [{:keys [columns]}] (-> (* 2 Math/PI) (/ columns)))
+
+(defn polar-coordinates
+  ([[y x] ring-height theta]
+   {:inner-radius (* y ring-height)
+    :outer-radius (* (inc y) ring-height)
+    :theta-ccw    (* x theta)
+    :theta-cw     (* (inc x) theta)}))
+
+(defn polar->cartesian [{:keys [inner-radius outer-radius theta-ccw theta-cw] [x y] :center}]
+  [(-> (* inner-radius (Math/cos theta-ccw)) (+ x))
+   (-> (* inner-radius (Math/sin theta-ccw)) (+ y))
+   (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
+   (-> (* outer-radius (Math/sin theta-ccw)) (+ y))
+   (-> (* inner-radius (Math/cos theta-cw)) (+ x))
+   (-> (* inner-radius (Math/sin theta-cw)) (+ y))
+   (-> (* outer-radius (Math/cos theta-cw)) (+ x))
+   (-> (* outer-radius (Math/sin theta-cw)) (+ y))])
+
+(defn comp-polar-grid [{:keys [width height]} {:keys [rows] :as grid}]
+  (let [theta (grid-polar-theta grid)
+        ring-height (-> (/ (dec height) rows 2))
+        [x y :as center] [(/ width 2) (/ height 2)]
+        lines (for [cell (m/cells-seq grid)
+                    :let [[ax ay bx by cx cy dx dy] (-> (polar-coordinates cell ring-height theta)
+                                                        (assoc :center center)
+                                                        (polar->cartesian))]]
+                (dom/g nil
+                  (if (m/linked-to? grid cell (north cell))
+                    #_ (dom/path #js {:d (str "M" ax "," ay " A5,5 1 0,1 " cx "," cy)
+                                      :fill "none" :stroke "#000" :strokeWidth "2"})
+                    (svg-line ax ay cx cy))
+                  (if (m/linked-to? grid cell (east cell))  (svg-line cx cy dx dy))))]
+    (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :stroke "#000" :strokeWidth "2" :fill "none"}) lines)))
+
 (defn comp-layer-toggler [layer {:keys [data bus]}]
   (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])
                   :onChange #(put! bus [:update-layer layer :show (.. % -target -checked)])}))
@@ -285,13 +322,15 @@
 
           (dom/hr nil)
 
-          (let [size {:width 600 :height 600}]
+          (let [size {:width 600 :height 600}
+                maze (:maze data)]
             (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
               (dom/svg (clj->js size)
                 (if (get-in data [:layers :distance-mash :show])
-                  (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) (:maze data)))
-                (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size (:maze data)))
-                (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size (:maze data))))])))))))
+                  (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) maze))
+                (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size maze))
+                (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size maze))
+                (comp-polar-grid size maze))])))))))
 
 ;; initializer
 

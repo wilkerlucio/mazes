@@ -7,6 +7,7 @@
             [om.core :as om]
             [om.dom :as dom]
             [cljs.core.async :refer [chan put! <!] :as async]
+            [wilkerdev.util :refer [distinct-consecutive]]
             [wilkerdev.util.dom :as domm])
   (:import [goog.fs FileReader]))
 
@@ -22,6 +23,7 @@
    :layers         {:distance-mash {:show true
                                     :color-fn :blue-to-red}
                     :dead-ends     {:show false}
+                    :path          {:show true}
                     :grid-lines    {:show true}}})
 
 (def opt-grid-types
@@ -200,10 +202,15 @@
 
     (go-sub pub :update-grid-size [_ axis size]
       (let [n (or (js/parseInt size) 0)]
-        (om/update! (om/get-props owner) [:grid-size axis] (fit-in-range n 1 100))))
+        (om/update! data [:grid-size axis] (fit-in-range n 1 100))))
 
     (go-sub pub :update-layer [_ layer prop value]
       (om/transact! data #(assoc-in % [:layers layer prop] value)))
+
+    (go-sub* pub :select-cell [_ cell] (chan 1 (distinct-consecutive))
+      (let [{{:keys [marks] :as grid} :grid} (om/get-props owner)
+            route (m/trace-route-back (unserialize-record grid) marks cell)]
+        (om/update! data :render-path route)))
 
     (go-sub pub :mask-dropped [_ file]
       (if (= :rectangular (get (om/get-props owner) :grid-type))
@@ -232,7 +239,8 @@
               ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
               dead-ends (bench "dead ends" (m/dead-ends grid))]
           (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
-                                     (serialize-record))))
+                                     (serialize-record)))
+          (om/update! data :render-path []))
         (catch js/Error e
           (print "Error generating maze: " (.-message e)))))))
 
@@ -244,11 +252,11 @@
 
 (extend-type m/RectangularGrid
   IRenderGrid
-  (draw-cell [grid cell style]
+  (draw-cell [grid cell attributes]
     (let [cell-size (rect-cell-size grid)
           [x y] (cell-bounds cell cell-size)]
-      (dom/rect #js {:width cell-size :height cell-size :x x :y y
-                     :style (clj->js style)})))
+      (dom/rect (clj->js (merge {:width cell-size :height cell-size :x x :y y}
+                                attributes)))))
 
   (draw-grid-edges [grid style]
     (let [cell-size (rect-cell-size grid)
@@ -265,19 +273,19 @@
 
 (extend-type m/PolarGrid
   IRenderGrid
-  (draw-cell [grid cell style]
+  (draw-cell [grid cell attributes]
     (if (= cell [0 0])
       (let [{:keys [rows height]} grid
             [cx cy] (rect-center grid)
             radius (/ height rows 2)]
-        (dom/circle #js {:cx cx :cy cy :r radius :style (clj->js style)}))
+        (dom/circle (clj->js (merge {:cx cx :cy cy :r radius} attributes))))
       (let [{:keys [inner-radius outer-radius] :as coords} (polar-coordinates grid cell)
             [ax ay bx by cx cy dx dy] (polar->cartesian coords)]
-        (dom/path #js {:d (str "M" ax "," ay " "
-                               "A" inner-radius "," inner-radius " 0 0,1 " bx "," by " "
-                               "L" cx "," cy " "
-                               "A" outer-radius "," outer-radius " 0 0,0 " dx "," dy)
-                       :style (clj->js style)}) )))
+        (dom/path (clj->js (merge {:d       (str "M" ax "," ay " "
+                                                 "A" inner-radius "," inner-radius " 0 0,1 " bx "," by " "
+                                                 "L" cx "," cy " "
+                                                 "A" outer-radius "," outer-radius " 0 0,0 " dx "," dy)}
+                                  attributes))))))
 
   (draw-grid-edges [{:keys [rows height] :as grid} style]
     (let [style (clj->js style)
@@ -301,10 +309,11 @@
   (apply dom/select (attrs attributes :options)
          (map comp-option options)))
 
-(defn comp-grid-backgrounds [{:keys [marks color-fn] :as grid}]
+(defn comp-grid-backgrounds [{:keys [marks color-fn] :as grid} bus]
   (let [max-distance (get marks (farthest-point marks))
         mark->cell (fn [[cell distance]]
-                     (draw-cell grid cell {:fill (color-fn (/ distance max-distance))}))]
+                     (draw-cell grid cell {:fill (color-fn (/ distance max-distance))
+                                           :onClick #(put! bus [:select-cell cell])}))]
     (apply dom/g nil (map mark->cell marks))))
 
 (defn comp-grid-dead-ends [{:keys [dead-ends] :as grid}]
@@ -314,6 +323,10 @@
 (defn comp-layer-toggler [layer {:keys [data bus]}]
   (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])
                   :onChange #(put! bus [:update-layer layer :show (.. % -target -checked)])}))
+
+(defn comp-grid-path [grid path]
+  (let [mark->cell (fn [cell] (draw-cell grid cell {:fill "rgba(0, 255, 0, 0.3)"}))]
+    (apply dom/g nil (map mark->cell path))))
 
 (defn file-dropper [[{:keys [onDrop] :as opts} view] _]
   (reify
@@ -375,6 +388,9 @@
             "Dead Ends layer: "
             (comp-layer-toggler :dead-ends flux))
           (dom/div nil
+            "Path resolution layer: "
+            (comp-layer-toggler :path flux))
+          (dom/div nil
             "Grid Lines layer: "
             (comp-layer-toggler :grid-lines flux))
 
@@ -383,13 +399,16 @@
           (if-let [grid (:grid data)]
             (let [size {:width 600 :height 600}
                   grid (-> (unserialize-record grid)
-                           (merge size))]
-              (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
-                                      (dom/svg (clj->js size)
-                                        (if (get-in data [:layers :distance-mash :show])
-                                          (comp-grid-backgrounds (assoc grid :color-fn (get-in opt-color-functions [color-fn :value]))))
-                                        (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
-                                        (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]))))))))
+                           (merge size))
+                  grid-svg
+                  (dom/svg (clj->js size)
+                    (if (get-in data [:layers :distance-mash :show])
+                      (comp-grid-backgrounds (assoc grid :color-fn (get-in opt-color-functions [color-fn :value]))
+                                             bus))
+                    (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
+                    (if (get-in data [:layers :path :show]) (comp-grid-path grid (get data :render-path [])))
+                    (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]
+              (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])} grid-svg]))))))))
 
 ;; initializer
 

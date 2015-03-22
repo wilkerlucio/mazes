@@ -160,18 +160,17 @@
   (set! (.-ondragover js/window) #(.preventDefault %))
   (set! (.-ondrop js/window) #(.preventDefault %)))
 
-(defn rect-cell-size [{:keys [width height]} {:keys [columns rows]}]
-  (min (/ width columns)
-       (/ height rows)))
+(defn rect-cell-size [{:keys [width height columns rows]}]
+  (min (/ width columns) (/ height rows)))
 
-(defn polar-coordinates [{:keys [rows] {:keys [height] :as size} ::dimensions} [y x]]
+(defn polar-coordinates [{:keys [rows height] :as grid} [y x]]
   (let [ring-height (-> (/ height rows 2))
         theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))]
     {:inner-radius (* y ring-height)
      :outer-radius (* (inc y) ring-height)
      :theta-ccw    (* x theta)
      :theta-cw     (* (inc x) theta)
-     :center       (rect-center size)}))
+     :center       (rect-center grid)}))
 
 (defn polar->cartesian [{:keys [inner-radius outer-radius theta-ccw theta-cw] [x y] :center}]
   [(-> (* inner-radius (Math/cos theta-ccw)) (+ x))
@@ -246,14 +245,14 @@
 
 (extend-type m/RectangularGrid
   IRenderGrid
-  (draw-cell [{:keys [::dimensions] :as grid} cell style]
-    (let [cell-size (rect-cell-size dimensions grid)
+  (draw-cell [grid cell style]
+    (let [cell-size (rect-cell-size grid)
           [x y] (cell-bounds cell cell-size)]
       (dom/rect #js {:width cell-size :height cell-size :x x :y y
                      :style (clj->js style)})))
 
-  (draw-grid-edges [{:keys [::dimensions] :as grid} style]
-    (let [cell-size (rect-cell-size dimensions grid)
+  (draw-grid-edges [grid style]
+    (let [cell-size (rect-cell-size grid)
           link->line (fn [cell]
                        (let [[x1 y1 x2 y2] (cell-bounds cell cell-size)
                              lines (->> [(if-not (valid-pos? grid (north cell)) [x1 y1 x2 y1])
@@ -269,8 +268,8 @@
   IRenderGrid
   (draw-cell [grid cell style]
     (if (= cell [0 0])
-      (let [{:keys [rows] {:keys [height]} ::dimensions} grid
-            [cx cy] (rect-center (::dimensions grid))
+      (let [{:keys [rows height]} grid
+            [cx cy] (rect-center grid)
             radius (/ height rows 2)]
         (dom/circle #js {:cx cx :cy cy :r radius :style (clj->js style)}))
       (let [{:keys [inner-radius outer-radius] :as coords} (polar-coordinates grid cell)
@@ -281,10 +280,10 @@
                                "A" outer-radius "," outer-radius " 0 0,0 " dx "," dy)
                        :style (clj->js style)}) )))
 
-  (draw-grid-edges [{:keys [rows] :as grid {:keys [height] :as size} ::dimensions} style]
+  (draw-grid-edges [{:keys [rows height] :as grid} style]
     (let [style (clj->js style)
           ring-height (-> (/ height rows 2))
-          [x y] (rect-center size)
+          [x y] (rect-center grid)
           lines (for [cell (m/cells-seq grid)
                       :when (> (get cell 0) 0)
                       :let [{:keys [inner-radius] :as coords} (polar-coordinates grid cell)
@@ -385,7 +384,7 @@
           (if-let [grid (:grid data)]
             (let [size {:width 600 :height 600}
                   grid (-> (unserialize-record grid)
-                           (assoc ::dimensions size))]
+                           (merge size))]
               (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
                                       (dom/svg (clj->js size)
                                         (if (get-in data [:layers :distance-mash :show])

@@ -4,6 +4,7 @@
   (:require [mazes.core :refer [cells-seq valid-pos? linked-to? north east south west
                                 make-grid rand-cell dijkstra-enumerate farthest-point]
              :as m]
+            [clojure.string :as str]
             [om.core :as om]
             [om.dom :as dom]
             [cljs.core.async :refer [chan put! <!] :as async]
@@ -20,11 +21,8 @@
    :mask           #{}
    :layers         {:distance-mash {:show false
                                     :color-fn :blue-to-red}
-                    :grid-lines    {:show false}
-                    :dead-ends     {:show false}}})
-
-(defonce app-state
-  (atom initial-state))
+                    :dead-ends     {:show false}
+                    :grid-lines    {:show true}}})
 
 (def opt-algorithms
   (sorted-map
@@ -64,17 +62,30 @@
     :green-to-black {:label "Green to Black"
                      :value color-compute-green-to-black}))
 
-(def grid-mask
-  (m/ascii-mask "X........X"
-                "....XX...."
-                "...XXXX..."
-                "....XX...."
-                "X........X"
-                "X........X"
-                "....XX...."
-                "...XXXX..."
-                "....XX...."
-                "X........X"))
+;; serialization
+
+(defprotocol ISerialize
+  (serialize-type-key [this]))
+
+(defn serialize-record [grid]
+  (-> (into {} grid)
+      (assoc :grid-type (serialize-type-key grid))))
+
+(defmulti unserialize-record* :grid-type)
+
+(defn unserialize-record [grid]
+  (-> (unserialize-record* grid)
+      (dissoc :grid-type)))
+
+(extend-protocol ISerialize
+  m/RectangularGrid
+  (serialize-type-key [_] ::rectangular)
+
+  m/PolarGrid
+  (serialize-type-key [_] ::polar))
+
+(defmethod unserialize-record* ::rectangular [attrs] (make-grid attrs))
+(defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid 1) attrs))
 
 ;; helpers
 
@@ -122,54 +133,26 @@
                       (set))]
         {:rows height :columns width :mask mask}))))
 
-;; svg helpers
+(defn- read-files [e]
+  (->> e
+       .-dataTransfer
+       .-files
+       array-seq))
 
-(defn svg-line [x1 y1 x2 y2]
-  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :strokeWidth "2" :strokeLinecap "round"}}))
+(defn read-file-as-data-url
+  ([file] (read-file-as-data-url file (chan)))
+  ([file c]
+   (doto (.readAsDataUrl FileReader file)
+     (.then #(put! c %)))
+   c))
 
-;; components
-
-(defn comp-option [{:keys [label value disabled?]}] (dom/option #js {:value value :disabled disabled?} label))
-
-(defn comp-select [{:keys [options] :as attributes}]
-  (apply dom/select (attrs attributes :options)
-         (map comp-option options)))
+(defn prevent-global-drop! []
+  (set! (.-ondragover js/window) #(.preventDefault %))
+  (set! (.-ondrop js/window) #(.preventDefault %)))
 
 (defn compute-cell-size [{:keys [width height]} {:keys [columns rows]}]
   (min (/ width columns)
        (/ height rows)))
-
-(defn comp-grid-backgrounds [{:keys [color-fn] :as dimensions
-                                    :or {color-fn color-compute-blue-to-red}}
-                             {:keys [marks] :as grid}]
-  (let [max-distance (get marks (farthest-point marks))
-        cell-size (compute-cell-size dimensions grid)
-        mark->rect (fn [[cell distance]]
-                     (let [[x y] (cell-bounds cell cell-size)]
-                       (dom/rect #js {:width cell-size :height cell-size :x x :y y
-                                      :style #js {:fill (color-fn (/ distance max-distance))}})))]
-    (apply dom/g nil (map mark->rect marks))))
-
-(defn comp-grid-lines [dimensions grid]
-  (let [cell-size (compute-cell-size dimensions grid)
-        link->line (fn [cell]
-                     (let [[x1 y1 x2 y2] (cell-bounds cell cell-size)
-                           lines (->> [(if-not (valid-pos? grid (north cell)) [x1 y1 x2 y1])
-                                       (if-not (valid-pos? grid (west cell)) [x1 y1 x1 y2])
-                                       (if-not (linked-to? grid cell (east cell)) [x2 y1 x2 y2])
-                                       (if-not (linked-to? grid cell (south cell)) [x1 y2 x2 y2])]
-
-                                      (filter identity))]
-                       (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line %) lines))))]
-    (apply dom/g nil (map link->line (cells-seq grid)))))
-
-(defn comp-grid-dead-ends [dimensions {:keys [dead-ends] :as grid}]
-  (let [cell-size (compute-cell-size dimensions grid)
-        mark->rect (fn [cell]
-                     (let [[x y] (cell-bounds cell cell-size)]
-                       (dom/rect #js {:width cell-size :height cell-size :x x :y y
-                                      :style #js {:fill "rgba(255, 255, 0, 0.3)"}})))]
-    (apply dom/g nil (map mark->rect (keys dead-ends)))))
 
 (defn polar-coordinates
   ([[y x] ring-height theta]
@@ -181,43 +164,95 @@
 (defn polar->cartesian [{:keys [inner-radius outer-radius theta-ccw theta-cw] [x y] :center}]
   [(-> (* inner-radius (Math/cos theta-ccw)) (+ x))
    (-> (* inner-radius (Math/sin theta-ccw)) (+ y))
-   (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
-   (-> (* outer-radius (Math/sin theta-ccw)) (+ y))
    (-> (* inner-radius (Math/cos theta-cw)) (+ x))
    (-> (* inner-radius (Math/sin theta-cw)) (+ y))
    (-> (* outer-radius (Math/cos theta-cw)) (+ x))
-   (-> (* outer-radius (Math/sin theta-cw)) (+ y))])
+   (-> (* outer-radius (Math/sin theta-cw)) (+ y))
+   (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
+   (-> (* outer-radius (Math/sin theta-ccw)) (+ y))])
 
-(defn comp-polar-grid [{:keys [width height]} {:keys [rows] :as grid}]
-  (let [ring-height (-> (/ (dec height) rows 2))
-        [x y :as center] [(/ width 2) (/ height 2)]
-        lines (for [[y :as cell] (m/cells-seq grid)
-                    :when (> (get cell 0) 0)
-                    :let [theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))
-                          [ax ay _ _ cx cy dx dy] (-> (polar-coordinates cell ring-height theta)
-                                                      (assoc :center center)
-                                                      (polar->cartesian))]]
-                (dom/g nil
-                  (if-not (m/linked-to? grid cell (m/polar-cell-inward grid cell)) (svg-line ax ay cx cy))
-                  (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line cx cy dx dy))))]
-    (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :stroke "#000" :strokeWidth "2" :fill "none"}) lines)))
+(defn polar-cell-bounds [{:keys [rows] {:keys [width height]} ::dimensions} [y :as cell]]
+  (let [ring-height (-> (/ height rows 2))
+        center [(/ width 2) (/ height 2)]
+        theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))]
+    (-> (polar-coordinates cell ring-height theta)
+        (assoc :center center)
+        (polar->cartesian))))
+
+;; svg helpers
+
+(defn svg-line [x1 y1 x2 y2]
+  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :strokeWidth "2" :strokeLinecap "round"}}))
+
+(defn svg-path-d [path]
+  (assert (> (count path) 3) "at least 4 coordinates are required")
+  (assert (even? (count path)) "an even number of coordinates is required")
+  (let [[[hx hy] & tail] (partition 2 path)]
+    (str/join " " (apply vector (str "M" hx "," hy)
+                         (map (fn [[x y]] (str "L" x "," y)) tail)))))
+
+;; components
+
+(defprotocol IRenderGrid
+  (draw-cell [grid cell style])
+  (draw-grid-edges [grid style]))
+
+(extend-protocol IRenderGrid
+  m/RectangularGrid
+  (draw-cell [{:keys [::dimensions] :as grid} cell style]
+    (let [cell-size (compute-cell-size dimensions grid)
+          [x y] (cell-bounds cell cell-size)]
+      (dom/rect #js {:width cell-size :height cell-size :x x :y y
+                     :style (clj->js style)})))
+
+  (draw-grid-edges [{:keys [::dimensions] :as grid} style]
+    (let [cell-size (compute-cell-size dimensions grid)
+          link->line (fn [cell]
+                       (let [[x1 y1 x2 y2] (cell-bounds cell cell-size)
+                             lines (->> [(if-not (valid-pos? grid (north cell)) [x1 y1 x2 y1])
+                                         (if-not (valid-pos? grid (west cell)) [x1 y1 x1 y2])
+                                         (if-not (linked-to? grid cell (east cell)) [x2 y1 x2 y2])
+                                         (if-not (linked-to? grid cell (south cell)) [x1 y2 x2 y2])]
+
+                                        (filter identity))]
+                         (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line %) lines))))]
+      (apply dom/g nil (map link->line (cells-seq grid)))))
+
+  m/PolarGrid
+  (draw-cell [grid cell style]
+    (let [edges (polar-cell-bounds grid cell)]
+      (dom/path #js {:d (str (svg-path-d edges) " Z") :style (clj->js style)})))
+
+  (draw-grid-edges [{:keys [rows] :as grid {:keys [width height]} ::dimensions} style]
+    (let [ring-height (-> (/ height rows 2))
+          [x y] [(/ width 2) (/ height 2)]
+          lines (for [cell (m/cells-seq grid)
+                      :when (> (get cell 0) 0)
+                      :let [[ax ay bx by cx cy] (polar-cell-bounds grid cell)]]
+                  (dom/g nil
+                    (if-not (m/linked-to? grid cell (m/polar-cell-inward grid cell)) (svg-line ax ay bx by))
+                    (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line bx by cx cy))))]
+      (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :stroke "#000" :strokeWidth "2" :fill "none"}) lines))))
+
+(defn comp-option [{:keys [label value disabled?]}] (dom/option #js {:value value :disabled disabled?} label))
+
+(defn comp-select [{:keys [options] :as attributes}]
+  (apply dom/select (attrs attributes :options)
+         (map comp-option options)))
+
+(defn comp-grid-backgrounds [{:keys [marks color-fn] :as grid}]
+  (let [max-distance (get marks (farthest-point marks))
+        mark->cell (fn [[cell distance]]
+                     (draw-cell grid cell {:fill (color-fn (/ distance max-distance))}))]
+    (apply dom/g nil (map mark->cell marks))))
+
+(defn comp-grid-dead-ends [{:keys [dead-ends] :as grid}]
+  (let [mark->cell (fn [cell] (draw-cell grid cell {:fill "rgba(255, 255, 0, 0.3)"}))]
+    (apply dom/g nil (map mark->cell (keys dead-ends)))))
 
 (defn comp-layer-toggler [layer {:keys [data bus]}]
   (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])
                   :onChange #(put! bus [:update-layer layer :show (.. % -target -checked)])}))
-
-(defn- read-files [e]
-  (->> e
-       .-dataTransfer
-       .-files
-       array-seq))
-
-(defn read-file-as-data-url
-  ([file] (read-file-as-data-url file (chan)))
-  ([file c]
-    (doto (.readAsDataUrl FileReader file)
-      (.then #(put! c %)))
-    c))
 
 (defn file-dropper [[{:keys [onDrop] :as opts} view] _]
   (reify
@@ -231,17 +266,12 @@
         (dom/div (clj->js attrs)
           view)))))
 
-(defn prevent-global-drop! []
-  (set! (.-ondragover js/window) #(.preventDefault %))
-  (set! (.-ondrop js/window) #(.preventDefault %)))
-
 (defn maze-services [data owner]
   (let [pub (om/get-state owner :pub)
         bus (om/get-state owner :bus)]
 
     (go-sub pub :update-generator [_ generator]
-      (om/update! data :generator (keyword generator))
-      (put! bus [:generate-maze]))
+      (om/update! data :generator (keyword generator)))
 
     (go-sub pub :update-grid-size [_ axis size]
       (let [n (or (js/parseInt size) 0)]
@@ -272,7 +302,7 @@
               marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
               dead-ends (bench "dead ends" (m/dead-ends grid))]
           (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
-                                     (m/serialize-grid))))
+                                     (serialize-record))))
         (catch js/Error e
           (print "Error generating maze: " (.-message e)))))))
 
@@ -322,18 +352,18 @@
 
           (if-let [grid (:grid data)]
             (let [size {:width 600 :height 600}
-                  grid (m/unserialize-grid grid)]
+                  grid (-> (unserialize-record grid)
+                           (assoc ::dimensions size))]
               (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])}
                                       (dom/svg (clj->js size)
                                         (if (get-in data [:layers :distance-mash :show])
-                                          (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) grid))
-                                        (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size grid))
-                                        (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size grid))
-                                        (comp-polar-grid size grid))]))))))))
+                                          (comp-grid-backgrounds (assoc grid :color-fn (get-in opt-color-functions [color-fn :value]))))
+                                        (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
+                                        (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {})))]))))))))
 
 ;; initializer
 
-(defn build-at [node]
+(defn build-at [node app-state]
   (prevent-global-drop!)
   (let [root (om/root maze-playground app-state {:target node})]
     (om/get-state root)))

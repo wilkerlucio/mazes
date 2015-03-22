@@ -5,25 +5,12 @@
 
 (enable-console-print!)
 
-(defprotocol IHaveCells
+(defprotocol IGrid
   (cells-seq [grid])
   (valid-pos? [grid cell])
   (count-cells [grid])
   (rand-cell [grid])
   (cell-neighbors [grid cell]))
-
-(defprotocol IGridSerialize
-  (grid-type-key [this]))
-
-(defn serialize-grid [grid]
-  (-> (into {} grid)
-      (assoc :grid-type (grid-type-key grid))))
-
-(defmulti unserialize-grid* :grid-type)
-
-(defn unserialize-grid [grid]
-  (-> (unserialize-grid* grid)
-      (dissoc :grid-type)))
 
 ;; util
 
@@ -38,7 +25,7 @@
 (defn south [[y x]] [(inc y) x])
 
 (defrecord RectangularGrid [rows columns links mask]
-  IHaveCells
+  IGrid
   (cells-seq [this]
     (for [y (range rows) x (range columns)
           :let [cell [y x]]
@@ -51,24 +38,21 @@
          (not (contains? mask cell))))
 
   (count-cells [this]
-    (-> (* rows columns) (- (count (filter (partial valid-pos? (assoc this :mask #{})) mask)))))
+    (let [valid-mask-positions (filter (partial valid-pos? (assoc this :mask #{})) mask)]
+      (-> (* rows columns)
+          (- (count valid-mask-positions)))))
 
   (rand-cell [_]
     (loop []
       (let [cell [(rand-int rows) (rand-int columns)]]
         (if (contains? mask cell) (recur) cell))))
 
-  (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)})
-
-  IGridSerialize
-  (grid-type-key [_] ::rectangular))
+  (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)}))
 
 (defn make-grid
   ([attrs] (merge (make-grid 0 0) attrs))
   ([rows columns]
    (RectangularGrid. rows columns {} #{})))
-
-(defmethod unserialize-grid* ::rectangular [attrs] (make-grid attrs))
 
 ;; polar grid
 
@@ -116,7 +100,7 @@
                      [(inc y) (-> (* ratio x) (+ c))]))))))
 
 (defrecord PolarGrid [rows links]
-  IHaveCells
+  IGrid
   (cells-seq [_]
     (let [rows (for [y (range rows)]
                  (if (= 0 y)
@@ -138,15 +122,10 @@
       (into #{(polar-cell-inward this cell)
               (polar-cell-cw this cell)
               (polar-cell-ccw this cell)}
-            (polar-cell-outward this cell))))
-
-  IGridSerialize
-  (grid-type-key [_] ::polar))
+            (polar-cell-outward this cell)))))
 
 (defn make-polar-grid [rows]
   (PolarGrid. rows {}))
-
-(defmethod unserialize-grid* ::polar [attrs] (merge (make-polar-grid 1) attrs))
 
 ;; common grid functions
 

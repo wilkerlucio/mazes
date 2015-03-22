@@ -19,7 +19,7 @@
    :marker-builder :random-point
    :colorizer      :blue-to-red
    :mask           #{}
-   :layers         {:distance-mash {:show false
+   :layers         {:distance-mash {:show true
                                     :color-fn :blue-to-red}
                     :dead-ends     {:show false}
                     :grid-lines    {:show true}}})
@@ -175,24 +175,10 @@
    (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
    (-> (* outer-radius (Math/sin theta-ccw)) (+ y))])
 
-(defn polar-cell-bounds [grid cell]
-  (-> (polar-coordinates grid cell)
-      (polar->cartesian)))
-
 ;; svg helpers
 
-(defn svg-line [x1 y1 x2 y2]
-  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :strokeWidth "2" :strokeLinecap "round"}}))
-
-(defn svg-coord [[x y prefix]]
-  (str prefix x "," y))
-
-(defn svg-path-d [path]
-  (assert (> (count path) 3) "at least 4 coordinates are required")
-  (assert (even? (count path)) "an even number of coordinates is required")
-  (let [[[hx hy] & tail] (partition 2 path)]
-    (str/join " " (apply vector (str "M" hx "," hy)
-                         (map (fn [[x y]] (str "L" x "," y)) tail)))))
+(defn svg-line [x1 y1 x2 y2 style]
+  (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style (clj->js style)}))
 
 ;; components
 
@@ -218,7 +204,7 @@
                                          (if-not (linked-to? grid cell (south cell)) [x1 y2 x2 y2])]
 
                                         (filter identity))]
-                         (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line %) lines))))]
+                         (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]
       (apply dom/g nil (map link->line (cells-seq grid)))))
 
   m/PolarGrid
@@ -249,7 +235,7 @@
                       (dom/path #js {:d (str "M" ax "," ay " "
                                              "A" inner-radius "," inner-radius " 0 0,1 " bx "," by)
                                      :style style}))
-                    (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line bx by cx cy))))]
+                    (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line bx by cx cy style))))]
       (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :style style}) lines))))
 
 (defn comp-option [{:keys [label value disabled?]}] (dom/option #js {:value value :disabled disabled?} label))

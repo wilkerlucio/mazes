@@ -31,16 +31,6 @@
 
 ;; svg
 
-(deftest test-svg-path-d
-  (is (thrown-with-msg? js/Error #"at least 4 coordinates are required" (p/svg-path-d [1 2])))
-  (is (thrown-with-msg? js/Error #"an even number of coordinates is required" (p/svg-path-d [1 2 3 4 5])))
-  (is (= (p/svg-path-d [5 3 10 20]) "M5,3 L10,20"))
-  (is (= (p/svg-path-d [5 3 10 20 30 40]) "M5,3 L10,20 L30,40")))
-
-(deftest svg-coord
-  (is (= (p/svg-coord [1 2]) "1,2"))
-  (is (= (p/svg-coord [3 4 "M"]) "M3,4")))
-
 ;; run
 
 (t/test-ns 'mazes.playground-test)

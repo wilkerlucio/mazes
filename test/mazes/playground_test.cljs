@@ -14,6 +14,11 @@
            {:rows 3 :columns 5 :mask #{[0 0] [0 4] [1 2] [2 0] [2 4]}}))
     (done)))
 
+;; util
+
+(deftest test-rect-center
+  (is (= (p/rect-center {:width 10 :height 20}) [5 10])))
+
 ;; testing serialization
 
 (deftest test-serialization
@@ -31,6 +36,10 @@
   (is (thrown-with-msg? js/Error #"an even number of coordinates is required" (p/svg-path-d [1 2 3 4 5])))
   (is (= (p/svg-path-d [5 3 10 20]) "M5,3 L10,20"))
   (is (= (p/svg-path-d [5 3 10 20 30 40]) "M5,3 L10,20 L30,40")))
+
+(deftest svg-coord
+  (is (= (p/svg-coord [1 2]) "1,2"))
+  (is (= (p/svg-coord [3 4 "M"]) "M3,4")))
 
 ;; run
 

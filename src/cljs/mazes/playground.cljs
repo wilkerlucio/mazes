@@ -89,6 +89,8 @@
 
 ;; helpers
 
+(defn rect-center [{:keys [width height]}] [(/ width 2) (/ height 2)])
+
 (defn cell-bounds [[y x] cell-size]
   [(* x cell-size) (* y cell-size)
    (* (inc x) cell-size) (* (inc y) cell-size)])
@@ -154,13 +156,14 @@
   (min (/ width columns)
        (/ height rows)))
 
-(defn polar-coordinates [{:keys [rows] {:keys [height]} ::dimensions} [y x]]
+(defn polar-coordinates [{:keys [rows] {:keys [height] :as size} ::dimensions} [y x]]
   (let [ring-height (-> (/ height rows 2))
         theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))]
     {:inner-radius (* y ring-height)
      :outer-radius (* (inc y) ring-height)
      :theta-ccw    (* x theta)
-     :theta-cw     (* (inc x) theta)}))
+     :theta-cw     (* (inc x) theta)
+     :center       (rect-center size)}))
 
 (defn polar->cartesian [{:keys [inner-radius outer-radius theta-ccw theta-cw] [x y] :center}]
   [(-> (* inner-radius (Math/cos theta-ccw)) (+ x))
@@ -172,16 +175,17 @@
    (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
    (-> (* outer-radius (Math/sin theta-ccw)) (+ y))])
 
-(defn polar-cell-bounds [{{:keys [width height]} ::dimensions :as grid} cell]
-  (let [center [(/ width 2) (/ height 2)]]
-    (-> (polar-coordinates grid cell)
-        (assoc :center center)
-        (polar->cartesian))))
+(defn polar-cell-bounds [grid cell]
+  (-> (polar-coordinates grid cell)
+      (polar->cartesian)))
 
 ;; svg helpers
 
 (defn svg-line [x1 y1 x2 y2]
   (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style #js {:stroke "#000" :strokeWidth "2" :strokeLinecap "round"}}))
+
+(defn svg-coord [[x y prefix]]
+  (str prefix x "," y))
 
 (defn svg-path-d [path]
   (assert (> (count path) 3) "at least 4 coordinates are required")
@@ -219,19 +223,34 @@
 
   m/PolarGrid
   (draw-cell [grid cell style]
-    (let [edges (polar-cell-bounds grid cell)]
-      (dom/path #js {:d (str (svg-path-d edges) " Z") :style (clj->js style)})))
+    (if (= cell [0 0])
+      (let [{:keys [rows] {:keys [height]} ::dimensions} grid
+            [cx cy] (rect-center (::dimensions grid))
+            radius (/ height rows 2)]
+        (dom/circle #js {:cx cx :cy cy :r radius :style (clj->js style)}))
+      (let [{:keys [inner-radius outer-radius] :as coords} (polar-coordinates grid cell)
+            [ax ay bx by cx cy dx dy] (polar->cartesian coords)]
+        (dom/path #js {:d (str "M" ax "," ay " "
+                               "A" inner-radius "," inner-radius " 0 0,1 " bx "," by " "
+                               "L" cx "," cy " "
+                               "A" outer-radius "," outer-radius " 0 0,0 " dx "," dy)
+                       :style (clj->js style)}) )))
 
   (draw-grid-edges [{:keys [rows] :as grid {:keys [width height]} ::dimensions} style]
-    (let [ring-height (-> (/ height rows 2))
+    (let [style (clj->js style)
+          ring-height (-> (/ height rows 2))
           [x y] [(/ width 2) (/ height 2)]
           lines (for [cell (m/cells-seq grid)
                       :when (> (get cell 0) 0)
-                      :let [[ax ay bx by cx cy] (polar-cell-bounds grid cell)]]
+                      :let [{:keys [inner-radius] :as coords} (polar-coordinates grid cell)
+                            [ax ay bx by cx cy] (polar->cartesian coords)]]
                   (dom/g nil
-                    (if-not (m/linked-to? grid cell (m/polar-cell-inward grid cell)) (svg-line ax ay bx by))
+                    (if-not (m/linked-to? grid cell (m/polar-cell-inward grid cell))
+                      (dom/path #js {:d (str "M" ax "," ay " "
+                                             "A" inner-radius "," inner-radius " 0 0,1 " bx "," by)
+                                     :style style}))
                     (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line bx by cx cy))))]
-      (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :stroke "#000" :strokeWidth "2" :fill "none"}) lines))))
+      (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :style style}) lines))))
 
 (defn comp-option [{:keys [label value disabled?]}] (dom/option #js {:value value :disabled disabled?} label))
 
@@ -296,9 +315,12 @@
               _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
               generator (get-in opt-algorithms [(:generator cur-data) :value])
               grid (bench "generating maze" (-> (m/make-polar-grid rows)
+                                                #_ (m/make-grid rows columns)
                                                 (update :mask into (:mask cur-data))
                                                 generator))
-              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
+              ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
+              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
+              ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
               dead-ends (bench "dead ends" (m/dead-ends grid))]
           (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
                                      (serialize-record))))
@@ -358,7 +380,7 @@
                                         (if (get-in data [:layers :distance-mash :show])
                                           (comp-grid-backgrounds (assoc grid :color-fn (get-in opt-color-functions [color-fn :value]))))
                                         (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
-                                        (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {})))]))))))))
+                                        (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]))))))))
 
 ;; initializer
 

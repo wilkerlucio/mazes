@@ -14,7 +14,8 @@
 ;; state and data
 
 (def initial-state
-  {:grid-size      {:columns 10 :rows 10}
+  {:grid-type      :polar
+   :grid-size      {:columns 10 :rows 10}
    :generator      :recursive-backtracker
    :marker-builder :random-point
    :colorizer      :blue-to-red
@@ -23,6 +24,13 @@
                                     :color-fn :blue-to-red}
                     :dead-ends     {:show false}
                     :grid-lines    {:show true}}})
+
+(def opt-grid-types
+  (sorted-map
+    :rectangular {:label "Rectangular Grid"
+                  :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-grid columns rows))}
+    :polar {:label "Polar Grid"
+            :value (fn [{{:keys [rows]} :grid-size}] (m/make-polar-grid rows))}))
 
 (def opt-algorithms
   (sorted-map
@@ -274,6 +282,9 @@
   (let [pub (om/get-state owner :pub)
         bus (om/get-state owner :bus)]
 
+    (go-sub pub :update-grid-type [_ grid-type]
+      (om/update! data :grid-type (keyword grid-type)))
+
     (go-sub pub :update-generator [_ generator]
       (om/update! data :generator (keyword generator)))
 
@@ -297,15 +308,16 @@
     (go-sub pub :generate-maze [_]
       (try
         (let [cur-data (om/get-props owner)
-              {:keys [columns rows] :as grid-size} (:grid-size cur-data)
+              grid-size (:grid-size cur-data)
               _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
               generator (get-in opt-algorithms [(:generator cur-data) :value])
-              grid (bench "generating maze" (-> (m/make-polar-grid rows)
+              grid-builder (get-in opt-grid-types [(:grid-type cur-data) :value])
+              grid (bench "generating maze" (-> (grid-builder cur-data)
                                                 #_ (m/make-grid rows columns)
                                                 (update :mask into (:mask cur-data))
                                                 generator))
-              ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
-              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
+              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
+              ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
               ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
               dead-ends (bench "dead ends" (m/dead-ends grid))]
           (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
@@ -330,14 +342,22 @@
             flux {:data data :bus bus}
             color-fn (get-in data [:layers :distance-mash :color-fn])]
         (dom/div nil
+
+          (dom/label #js {:style #js {:display "block"}}
+            "Grid type: "
+            (comp-select {:value    (name (:grid-type data)) :options (impl->options opt-grid-types data)
+                          :onChange #(put! bus [:update-grid-type (target-value %)])}))
+
           (dom/label #js {:style #js {:display "block"}}
             "Generator algorithm: "
             (comp-select {:value    (name generator) :options (impl->options opt-algorithms data)
                           :onChange #(put! bus [:update-generator (target-value %)])}))
+
           (dom/label #js {:style #js {:display "block"}}
             "Grid size: "
-            (dom/input #js {:type     "number" :value (:columns grid-size) :min 1 :max 100
-                            :onChange #(put! bus [:update-grid-size :columns (target-value %)])})
+            (if-not (= :polar (:grid-type data))
+              (dom/input #js {:type     "number" :value (:columns grid-size) :min 1 :max 100
+                              :onChange #(put! bus [:update-grid-size :columns (target-value %)])}))
             (dom/input #js {:type     "number" :value (:rows grid-size) :min 1 :max 100
                             :onChange #(put! bus [:update-grid-size :rows (target-value %)])}))
           (dom/button #js {:onClick #(put! bus [:generate-maze])

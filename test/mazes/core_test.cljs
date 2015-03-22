@@ -232,6 +232,73 @@
                        "X...X")
          #{[0 0] [0 4] [1 2] [2 0] [2 4]})))
 
+;; polar grid
+
+(deftest test-polar-cell-cw
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/polar-cell-cw grid [0 0]) [0 0]))
+    (is (= (m/polar-cell-cw grid [1 0]) [1 1]))
+    (is (= (m/polar-cell-cw grid [1 1]) [1 2]))
+    (is (= (m/polar-cell-cw grid [1 5]) [1 0]))))
+
+(deftest test-polar-cell-ccw
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/polar-cell-ccw grid [0 0]) [0 0]))
+    (is (= (m/polar-cell-ccw grid [1 0]) [1 5]))
+    (is (= (m/polar-cell-ccw grid [1 1]) [1 0]))
+    (is (= (m/polar-cell-ccw grid [1 5]) [1 4]))))
+
+(deftest test-polar-cell-inward
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/polar-cell-inward grid [0 0]) [-1 0]))
+    (is (= (m/polar-cell-inward grid [1 0]) [0 0]))
+    (is (= (m/polar-cell-inward grid [1 1]) [0 0]))
+    (is (= (m/polar-cell-inward grid [1 2]) [0 0]))
+    (is (= (m/polar-cell-inward grid [1 3]) [0 0]))
+    (is (= (m/polar-cell-inward grid [2 0]) [1 0]))
+    (is (= (m/polar-cell-inward grid [2 1]) [1 0]))
+    (is (= (m/polar-cell-inward grid [2 2]) [1 1]))))
+
+(deftest test-polar-cell-outward
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/polar-cell-outward grid [0 0]) #{[1 0] [1 1] [1 2] [1 3] [1 4] [1 5]}))
+    (is (= (m/polar-cell-outward grid [1 0]) #{[2 0] [2 1]}))
+    (is (= (m/polar-cell-outward grid [1 1]) #{[2 2] [2 3]}))
+    (is (= (m/polar-cell-outward grid [3 0]) #{[4 0]}))
+    (is (= (m/polar-cell-outward grid [7 0]) #{}))))
+
+(deftest test-polar-cells-seq
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/cells-seq grid)
+           (concat (m/make-polar-row 0 1)
+                   (m/make-polar-row 1 6)
+                   (m/make-polar-row 2 12)
+                   (m/make-polar-row 3 24)
+                   (m/make-polar-row 4 24)
+                   (m/make-polar-row 5 24)
+                   (m/make-polar-row 6 48)
+                   (m/make-polar-row 7 48))))))
+
+(deftest test-polar-valid-pos
+  (let [grid (m/make-polar-grid 8)]
+    (is (true? (m/valid-pos? grid [0 0])))
+    (is (true? (m/valid-pos? grid [1 1])))
+    (is (true? (m/valid-pos? grid [7 45])))
+    (is (false? (m/valid-pos? grid [-1 0])))
+    (is (false? (m/valid-pos? grid [0 1])))
+    (is (false? (m/valid-pos? grid [1 10])))))
+
+(deftest test-polar-count-cells
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/count-cells grid) 187))))
+
+(deftest test-polar-cell-neighbors
+  (let [grid (m/make-polar-grid 8)]
+    (is (= (m/cell-neighbors grid [0 0])
+           #{[1 0] [1 1] [1 2] [1 3] [1 4] [1 5]}))
+    (is (= (m/cell-neighbors grid [1 0])
+           #{[0 0] [1 5] [1 1] [2 0] [2 1]}))))
+
 ;; front-end
 
 (def png-mask-example "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAADCAIAAADUVFKvAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyhpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMDE0IDc5LjE1Njc5NywgMjAxNC8wOC8yMC0wOTo1MzowMiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIDIwMTQgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MzJFQ0Y3MDdDNzI3MTFFNDlCN0FEQ0RDNzIwRjY2MjgiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MzJFQ0Y3MDhDNzI3MTFFNDlCN0FEQ0RDNzIwRjY2MjgiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDozMkVDRjcwNUM3MjcxMUU0OUI3QURDREM3MjBGNjYyOCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDozMkVDRjcwNkM3MjcxMUU0OUI3QURDREM3MjBGNjYyOCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pg0S8McAAAAcSURBVHjaYmRgYPj//z8DGDACAYSDYKDJAwQYADsYDAFTzy+xAAAAAElFTkSuQmCC")

@@ -18,9 +18,9 @@
    :marker-builder :random-point
    :colorizer      :blue-to-red
    :mask           #{}
-   :layers         {:distance-mash {:show true
+   :layers         {:distance-mash {:show false
                                     :color-fn :blue-to-red}
-                    :grid-lines    {:show true}
+                    :grid-lines    {:show false}
                     :dead-ends     {:show false}}})
 
 (defonce app-state
@@ -171,8 +171,6 @@
                                       :style #js {:fill "rgba(255, 255, 0, 0.3)"}})))]
     (apply dom/g nil (map mark->rect (keys dead-ends)))))
 
-(defn grid-polar-theta [{:keys [columns]}] (-> (* 2 Math/PI) (/ columns)))
-
 (defn polar-coordinates
   ([[y x] ring-height theta]
    {:inner-radius (* y ring-height)
@@ -191,19 +189,17 @@
    (-> (* outer-radius (Math/sin theta-cw)) (+ y))])
 
 (defn comp-polar-grid [{:keys [width height]} {:keys [rows] :as grid}]
-  (let [theta (grid-polar-theta grid)
-        ring-height (-> (/ (dec height) rows 2))
+  (let [ring-height (-> (/ (dec height) rows 2))
         [x y :as center] [(/ width 2) (/ height 2)]
-        lines (for [cell (m/cells-seq grid)
-                    :let [[ax ay bx by cx cy dx dy] (-> (polar-coordinates cell ring-height theta)
-                                                        (assoc :center center)
-                                                        (polar->cartesian))]]
+        lines (for [[y :as cell] (m/cells-seq grid)
+                    :when (> (get cell 0) 0)
+                    :let [theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))
+                          [ax ay _ _ cx cy dx dy] (-> (polar-coordinates cell ring-height theta)
+                                                      (assoc :center center)
+                                                      (polar->cartesian))]]
                 (dom/g nil
-                  (if (m/linked-to? grid cell (north cell))
-                    #_ (dom/path #js {:d (str "M" ax "," ay " A5,5 1 0,1 " cx "," cy)
-                                      :fill "none" :stroke "#000" :strokeWidth "2"})
-                    (svg-line ax ay cx cy))
-                  (if (m/linked-to? grid cell (east cell))  (svg-line cx cy dx dy))))]
+                  (if-not (m/linked-to? grid cell (m/polar-cell-inward grid cell)) (svg-line ax ay cx cy))
+                  (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line cx cy dx dy))))]
     (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :stroke "#000" :strokeWidth "2" :fill "none"}) lines)))
 
 (defn comp-layer-toggler [layer {:keys [data bus]}]
@@ -270,7 +266,7 @@
               {:keys [columns rows] :as grid-size} (:grid-size cur-data)
               _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
               generator (get-in opt-algorithms [(:generator cur-data) :value])
-              grid (bench "generating maze" (-> (m/make-grid rows columns)
+              grid (bench "generating maze" (-> (m/make-polar-grid rows)
                                                 (update :mask into (:mask cur-data))
                                                 generator))
               marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
@@ -333,7 +329,7 @@
                                           (comp-grid-backgrounds (assoc size :color-fn (get-in opt-color-functions [color-fn :value])) grid))
                                         (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends size grid))
                                         (if (get-in data [:layers :grid-lines :show]) (comp-grid-lines size grid))
-                                        #_ (comp-polar-grid size maze))]))))))))
+                                        (comp-polar-grid size grid))]))))))))
 
 ;; initializer
 

@@ -6,11 +6,11 @@
 (enable-console-print!)
 
 (defprotocol IHaveCells
-  (cells-seq [this])
-  (valid-pos? [this cell])
-  (count-cells [this])
-  (rand-cell [this])
-  (cell-neighbors [this cell]))
+  (cells-seq [grid])
+  (valid-pos? [grid cell])
+  (count-cells [grid])
+  (rand-cell [grid])
+  (cell-neighbors [grid cell]))
 
 (defprotocol IGridSerialize
   (grid-type-key [this]))
@@ -39,21 +39,21 @@
 
 (defrecord RectangularGrid [rows columns links mask]
   IHaveCells
-  (valid-pos? [{:keys [rows columns mask]} [y x :as cell]]
+  (cells-seq [this]
+    (for [y (range rows) x (range columns)
+          :let [cell [y x]]
+          :when (valid-pos? this cell)]
+      cell))
+
+  (valid-pos? [_ [y x :as cell]]
     (and (>= x 0) (< x columns)
          (>= y 0) (< y rows)
          (not (contains? mask cell))))
 
-  (cells-seq [{:keys [rows columns] :as grid}]
-    (for [y (range rows) x (range columns)
-          :let [cell [y x]]
-          :when (valid-pos? grid cell)]
-      cell))
+  (count-cells [this]
+    (-> (* rows columns) (- (count (filter (partial valid-pos? (assoc this :mask #{})) mask)))))
 
-  (count-cells [{:keys [rows columns mask] :as grid}]
-    (-> (* rows columns) (- (count (filter (partial valid-pos? (assoc grid :mask #{})) mask)))))
-
-  (rand-cell [{:keys [rows columns mask]}]
+  (rand-cell [_]
     (loop []
       (let [cell [(rand-int rows) (rand-int columns)]]
         (if (contains? mask cell) (recur) cell))))
@@ -69,6 +69,84 @@
    (RectangularGrid. rows columns {} #{})))
 
 (defmethod unserialize-grid* ::rectangular [attrs] (make-grid attrs))
+
+;; polar grid
+
+(defn make-polar-row [row count] (map #(vector row %) (range count)))
+
+(def polar-count-row-cells
+  (memoize (fn polar-count-row-cells [rows y]
+             {:pre (>= y 0)}
+             (if (= y 0)
+               1
+               (let [radius (/ y rows)
+                     circumference (* 2 Math/PI radius)
+                     previous (polar-count-row-cells rows (dec y))
+                     estimated (/ circumference previous)
+                     ratio (/ estimated (/ 1 rows))]
+                 (* previous (.round js/Math ratio)))))))
+
+(defn polar-cell-cw [{:keys [rows]} [y x :as cell]]
+  (if (= cell [0 0])
+    [0 0]
+    [y (mod (inc x) (polar-count-row-cells rows y))]))
+
+(defn polar-cell-ccw [{:keys [rows]} [y x :as cell]]
+  (if (= cell [0 0])
+    [0 0]
+    [y (mod (dec x) (polar-count-row-cells rows y))]))
+
+(defn polar-cell-inward [{:keys [rows]} [y x]]
+  (if (= y 0)
+    [(dec y) x]
+    (let [prev-count (polar-count-row-cells rows (dec y))
+          ratio (min 2 (/ (polar-count-row-cells rows y) prev-count))]
+      [(dec y) (mod (->> (/ x ratio) (.floor js/Math))
+                    prev-count)])))
+
+(defn polar-cell-outward [{:keys [rows]} [y x]]
+  (cond
+    (= y 0) (set (make-polar-row 1 (polar-count-row-cells rows 1)))
+    (>= y (dec rows)) #{}
+    :else (let [next-count (polar-count-row-cells rows (inc y))
+                ratio (/ next-count (polar-count-row-cells rows y))]
+            (if (= ratio 1)
+              #{[(inc y) x]}
+              (set (for [c (range ratio)]
+                     [(inc y) (-> (* ratio x) (+ c))]))))))
+
+(defrecord PolarGrid [rows links]
+  IHaveCells
+  (cells-seq [_]
+    (let [rows (for [y (range rows)]
+                 (if (= 0 y)
+                   [[0 0]]
+                   (make-polar-row y (polar-count-row-cells rows y))))]
+      (reduce concat rows)))
+
+  (valid-pos? [_ [y x]]
+    (and (>= y 0) (< y rows)
+         (>= x 0) (< x (polar-count-row-cells rows y))))
+
+  (count-cells [this] (count (cells-seq this)))
+
+  (rand-cell [this] (rand-nth (vec (cells-seq this))))
+
+  (cell-neighbors [this cell]
+    (if (= cell [0 0])
+      (set (make-polar-row 1 (polar-count-row-cells rows 1)))
+      (into #{(polar-cell-inward this cell)
+              (polar-cell-cw this cell)
+              (polar-cell-ccw this cell)}
+            (polar-cell-outward this cell))))
+
+  IGridSerialize
+  (grid-type-key [_] ::polar))
+
+(defn make-polar-grid [rows]
+  (PolarGrid. rows {}))
+
+(defmethod unserialize-grid* ::polar [attrs] (merge (make-polar-grid 1) attrs))
 
 ;; common grid functions
 
@@ -97,12 +175,8 @@
   (->> (cells-seq grid)
        (remove (partial contains? links))))
 
-(defn rows-seq [{:keys [rows columns] :as grid}]
-  (for [y (range rows)]
-    (for [x (range columns)
-          :let [cell [y x]]
-          :when (valid-pos? grid cell)]
-      cell)))
+(defn rows-seq [grid]
+  (->> (cells-seq grid) (group-by first) (vals)))
 
 (defn valid-neighbors [grid cell]
   (->> (cell-neighbors grid cell)

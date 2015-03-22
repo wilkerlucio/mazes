@@ -4,7 +4,6 @@
   (:require [mazes.core :refer [cells-seq valid-pos? linked-to? north east south west
                                 make-grid rand-cell dijkstra-enumerate farthest-point]
              :as m]
-            [clojure.string :as str]
             [om.core :as om]
             [om.dom :as dom]
             [cljs.core.async :refer [chan put! <!] :as async]

@@ -208,14 +208,15 @@
       (om/transact! data #(assoc-in % [:layers layer prop] value)))
 
     (go-sub pub :mask-dropped [_ file]
-      (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
-                                            (png-mask) <!)]
-        (om/transact! data (fn [d]
-                             (-> (assoc d :mask mask)
-                                 (assoc-in [:grid-size :rows] rows)
-                                 (assoc-in [:grid-size :columns] columns))))
-        (<! (async/timeout 1))
-        (put! bus [:generate-maze])))
+      (if (= :rectangular (get (om/get-props owner) :grid-type))
+        (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
+                                              (png-mask) <!)]
+          (om/transact! data (fn [d]
+                               (-> (assoc d :mask mask)
+                                   (assoc-in [:grid-size :rows] rows)
+                                   (assoc-in [:grid-size :columns] columns))))
+          (<! (async/timeout 1))
+          (put! bus [:generate-maze]))))
 
     (go-sub pub :generate-maze [_]
       (try

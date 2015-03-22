@@ -1,6 +1,6 @@
 (ns mazes.core-test
   (:require-macros [cemerick.cljs.test
-                      :refer (is deftest with-test testing test-var done)]
+                      :refer (is are deftest with-test testing test-var done)]
                    [cljs.core.async.macros :refer [go]])
   (:require [cemerick.cljs.test :as t]
             [mazes.core :as m]
@@ -297,6 +297,39 @@
            #{[1 0] [1 1] [1 2] [1 3] [1 4] [1 5]}))
     (is (= (m/cell-neighbors grid [1 0])
            #{[0 0] [1 5] [1 1] [2 0] [2 1]}))))
+
+;; hex grid
+
+(deftest test-northeast
+  (are [c n] (= (m/northeast c) n)
+       [2 0] [1 1]
+       [1 1] [1 2]))
+
+(deftest test-northwest
+  (are [c n] (= (m/northwest c) n)
+       [1 1] [1 0]
+       [1 2] [0 1]))
+
+(deftest test-southeast
+  (are [c n] (= (m/southeast c) n)
+       [2 0] [2 1]
+       [2 1] [3 2]))
+
+(deftest test-southwest
+  (are [c n] (= (m/southwest c) n)
+       [2 2] [2 1]
+       [2 1] [3 0]))
+
+(deftest test-hex-cells-seq
+  (let [grid (m/make-hex-grid 3 3)]
+    (is (= (m/cells-seq grid) [[0 0] [0 1] [0 2]
+                               [1 0] [1 1] [1 2]
+                               [2 0] [2 1] [2 2]]))))
+
+(deftest test-hex-cell-neighbors
+  (are [cell neighbors] (= (m/cell-neighbors (m/make-hex-grid 5 5) cell) neighbors)
+       [1 1] #{[1 0] [0 1] [1 2] [2 2] [2 1] [2 0]}
+       [2 1] #{[2 0] [1 1] [2 2] [3 2] [3 1] [3 0]}))
 
 ;; run
 

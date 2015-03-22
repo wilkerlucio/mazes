@@ -127,6 +127,38 @@
 (defn make-polar-grid [rows]
   (PolarGrid. rows {}))
 
+;; hex grid
+
+(defn northeast [[y x]]
+  [(if (even? x) (dec y) y) (inc x)])
+
+(defn northwest [[y x]]
+  [(if (even? x) (dec y) y) (dec x)])
+
+(defn southeast [[y x]]
+  [(if (odd? x) (inc y) y) (inc x)])
+
+(defn southwest [[y x]]
+  [(if (odd? x) (inc y) y) (dec x)])
+
+(defrecord HexGrid [rows columns links]
+  IGrid
+  (cells-seq [_] (for [y (range rows) x (range columns)] [y x]))
+
+  (valid-pos? [_ [y x]]
+    (and (>= x 0) (< x columns)
+         (>= y 0) (< y rows)))
+
+  (count-cells [_] (* rows columns))
+
+  (rand-cell [_] [(rand-int rows) (rand-int columns)])
+
+  (cell-neighbors [_ cell] #{(northwest cell) (north cell) (northeast cell)
+                             (southwest cell) (south cell) (southeast cell)}))
+
+(defn make-hex-grid [rows cols]
+  (HexGrid. rows cols {}))
+
 ;; common grid functions
 
 (defn visit-cell [grid cell]

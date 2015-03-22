@@ -230,10 +230,10 @@
                                "A" outer-radius "," outer-radius " 0 0,0 " dx "," dy)
                        :style (clj->js style)}) )))
 
-  (draw-grid-edges [{:keys [rows] :as grid {:keys [width height]} ::dimensions} style]
+  (draw-grid-edges [{:keys [rows] :as grid {:keys [height] :as size} ::dimensions} style]
     (let [style (clj->js style)
           ring-height (-> (/ height rows 2))
-          [x y] [(/ width 2) (/ height 2)]
+          [x y] (rect-center size)
           lines (for [cell (m/cells-seq grid)
                       :when (> (get cell 0) 0)
                       :let [{:keys [inner-radius] :as coords} (polar-coordinates grid cell)

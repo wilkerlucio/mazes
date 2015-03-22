@@ -93,7 +93,7 @@
   (serialize-type-key [_] ::polar))
 
 (defmethod unserialize-record* ::rectangular [attrs] (make-grid attrs))
-(defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid 1) attrs))
+(defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid nil) attrs))
 
 ;; helpers
 
@@ -143,7 +143,7 @@
                       (set))]
         {:rows height :columns width :mask mask}))))
 
-(defn- read-files [e]
+(defn read-files [e]
   (->> e
        .-dataTransfer
        .-files
@@ -160,7 +160,7 @@
   (set! (.-ondragover js/window) #(.preventDefault %))
   (set! (.-ondrop js/window) #(.preventDefault %)))
 
-(defn compute-cell-size [{:keys [width height]} {:keys [columns rows]}]
+(defn rect-cell-size [{:keys [width height]} {:keys [columns rows]}]
   (min (/ width columns)
        (/ height rows)))
 
@@ -188,22 +188,71 @@
 (defn svg-line [x1 y1 x2 y2 style]
   (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style (clj->js style)}))
 
+;; services
+
+(defn maze-services [data owner]
+  (let [pub (om/get-state owner :pub)
+        bus (om/get-state owner :bus)]
+
+    (go-sub pub :update-grid-type [_ grid-type]
+      (om/update! data :grid-type (keyword grid-type)))
+
+    (go-sub pub :update-generator [_ generator]
+      (om/update! data :generator (keyword generator)))
+
+    (go-sub pub :update-grid-size [_ axis size]
+      (let [n (or (js/parseInt size) 0)]
+        (om/update! (om/get-props owner) [:grid-size axis] (fit-in-range n 1 100))))
+
+    (go-sub pub :update-layer [_ layer prop value]
+      (om/transact! data #(assoc-in % [:layers layer prop] value)))
+
+    (go-sub pub :mask-dropped [_ file]
+      (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
+                                            (png-mask) <!)]
+        (om/transact! data (fn [d]
+                             (-> (assoc d :mask mask)
+                                 (assoc-in [:grid-size :rows] rows)
+                                 (assoc-in [:grid-size :columns] columns))))
+        (<! (async/timeout 1))
+        (put! bus [:generate-maze])))
+
+    (go-sub pub :generate-maze [_]
+      (try
+        (let [cur-data (om/get-props owner)
+              grid-size (:grid-size cur-data)
+              _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
+              generator (get-in opt-algorithms [(:generator cur-data) :value])
+              grid-builder (get-in opt-grid-types [(:grid-type cur-data) :value])
+              grid (bench "generating maze" (-> (grid-builder cur-data)
+                                                #_ (m/make-grid rows columns)
+                                                (update :mask into (:mask cur-data))
+                                                generator))
+              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
+              ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
+              ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
+              dead-ends (bench "dead ends" (m/dead-ends grid))]
+          (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
+                                     (serialize-record))))
+        (catch js/Error e
+          (print "Error generating maze: " (.-message e)))))))
+
 ;; components
 
 (defprotocol IRenderGrid
   (draw-cell [grid cell style])
   (draw-grid-edges [grid style]))
 
-(extend-protocol IRenderGrid
-  m/RectangularGrid
+(extend-type m/RectangularGrid
+  IRenderGrid
   (draw-cell [{:keys [::dimensions] :as grid} cell style]
-    (let [cell-size (compute-cell-size dimensions grid)
+    (let [cell-size (rect-cell-size dimensions grid)
           [x y] (cell-bounds cell cell-size)]
       (dom/rect #js {:width cell-size :height cell-size :x x :y y
                      :style (clj->js style)})))
 
   (draw-grid-edges [{:keys [::dimensions] :as grid} style]
-    (let [cell-size (compute-cell-size dimensions grid)
+    (let [cell-size (rect-cell-size dimensions grid)
           link->line (fn [cell]
                        (let [[x1 y1 x2 y2] (cell-bounds cell cell-size)
                              lines (->> [(if-not (valid-pos? grid (north cell)) [x1 y1 x2 y1])
@@ -213,9 +262,10 @@
 
                                         (filter identity))]
                          (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]
-      (apply dom/g nil (map link->line (cells-seq grid)))))
+      (apply dom/g nil (map link->line (cells-seq grid))))))
 
-  m/PolarGrid
+(extend-type m/PolarGrid
+  IRenderGrid
   (draw-cell [grid cell style]
     (if (= cell [0 0])
       (let [{:keys [rows] {:keys [height]} ::dimensions} grid
@@ -278,52 +328,6 @@
         (dom/div (clj->js attrs)
           view)))))
 
-(defn maze-services [data owner]
-  (let [pub (om/get-state owner :pub)
-        bus (om/get-state owner :bus)]
-
-    (go-sub pub :update-grid-type [_ grid-type]
-      (om/update! data :grid-type (keyword grid-type)))
-
-    (go-sub pub :update-generator [_ generator]
-      (om/update! data :generator (keyword generator)))
-
-    (go-sub pub :update-grid-size [_ axis size]
-      (let [n (or (js/parseInt size) 0)]
-        (om/update! (om/get-props owner) [:grid-size axis] (fit-in-range n 1 100))))
-
-    (go-sub pub :update-layer [_ layer prop value]
-      (om/transact! data #(assoc-in % [:layers layer prop] value)))
-
-    (go-sub pub :mask-dropped [_ file]
-      (let [{:keys [rows columns mask]} (-> (read-file-as-data-url file) <!
-                                            (png-mask) <!)]
-        (om/transact! data (fn [d]
-                             (-> (assoc d :mask mask)
-                                 (assoc-in [:grid-size :rows] rows)
-                                 (assoc-in [:grid-size :columns] columns))))
-        (<! (async/timeout 1))
-        (put! bus [:generate-maze])))
-
-    (go-sub pub :generate-maze [_]
-      (try
-        (let [cur-data (om/get-props owner)
-              grid-size (:grid-size cur-data)
-              _ (assert (some #(> % 1) (vals grid-size)) "Grid size must be bigger than 1")
-              generator (get-in opt-algorithms [(:generator cur-data) :value])
-              grid-builder (get-in opt-grid-types [(:grid-type cur-data) :value])
-              grid (bench "generating maze" (-> (grid-builder cur-data)
-                                                #_ (m/make-grid rows columns)
-                                                (update :mask into (:mask cur-data))
-                                                generator))
-              marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
-              ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
-              ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
-              dead-ends (bench "dead ends" (m/dead-ends grid))]
-          (om/update! data :grid (-> (assoc grid :marks marks :dead-ends dead-ends)
-                                     (serialize-record))))
-        (catch js/Error e
-          (print "Error generating maze: " (.-message e)))))))
 
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify

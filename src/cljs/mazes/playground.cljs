@@ -154,12 +154,13 @@
   (min (/ width columns)
        (/ height rows)))
 
-(defn polar-coordinates
-  ([[y x] ring-height theta]
-   {:inner-radius (* y ring-height)
-    :outer-radius (* (inc y) ring-height)
-    :theta-ccw    (* x theta)
-    :theta-cw     (* (inc x) theta)}))
+(defn polar-coordinates [{:keys [rows] {:keys [height]} ::dimensions} [y x]]
+  (let [ring-height (-> (/ height rows 2))
+        theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))]
+    {:inner-radius (* y ring-height)
+     :outer-radius (* (inc y) ring-height)
+     :theta-ccw    (* x theta)
+     :theta-cw     (* (inc x) theta)}))
 
 (defn polar->cartesian [{:keys [inner-radius outer-radius theta-ccw theta-cw] [x y] :center}]
   [(-> (* inner-radius (Math/cos theta-ccw)) (+ x))
@@ -171,11 +172,9 @@
    (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
    (-> (* outer-radius (Math/sin theta-ccw)) (+ y))])
 
-(defn polar-cell-bounds [{:keys [rows] {:keys [width height]} ::dimensions} [y :as cell]]
-  (let [ring-height (-> (/ height rows 2))
-        center [(/ width 2) (/ height 2)]
-        theta (-> (* 2 Math/PI) (/ (m/polar-count-row-cells rows y)))]
-    (-> (polar-coordinates cell ring-height theta)
+(defn polar-cell-bounds [{{:keys [width height]} ::dimensions :as grid} cell]
+  (let [center [(/ width 2) (/ height 2)]]
+    (-> (polar-coordinates grid cell)
         (assoc :center center)
         (polar->cartesian))))
 

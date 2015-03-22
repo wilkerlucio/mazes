@@ -1,6 +1,6 @@
 (ns mazes.core-test
   (:require-macros [cemerick.cljs.test
-                      :refer (is are deftest with-test testing test-var done)]
+                    :refer (is are deftest with-test testing test-var done)]
                    [cljs.core.async.macros :refer [go]])
   (:require [cemerick.cljs.test :as t]
             [mazes.core :as m]
@@ -41,8 +41,8 @@
   (is (= (into {} (m/make-grid 4 3))
          {:rows 4 :columns 3 :links {} :mask #{}})))
 
-(deftest test-east  (is (= (m/east  [0 0]) [0 1])))
-(deftest test-west  (is (= (m/west  [0 1]) [0 0])))
+(deftest test-east (is (= (m/east [0 0]) [0 1])))
+(deftest test-west (is (= (m/west [0 1]) [0 0])))
 (deftest test-north (is (= (m/north [1 0]) [0 0])))
 (deftest test-south (is (= (m/south [0 0]) [1 0])))
 
@@ -61,7 +61,7 @@
          [[0 0] [0 1] [1 0] [1 1]]))
   (is (= (m/cells-seq masked-maze)
          [[0 0] [0 1] [0 2]
-          [1 0]       [1 2]
+          [1 0] [1 2]
           [2 0] [2 1] [2 2]])))
 
 (deftest test-count-cells
@@ -119,7 +119,7 @@
          [[[0 0] [0 1]] [[1 0] [1 1]]]))
   (is (= (m/rows-seq masked-maze)
          [[[0 0] [0 1] [0 2]]
-          [[1 0]       [1 2]]
+          [[1 0] [1 2]]
           [[2 0] [2 1] [2 2]]])))
 
 (deftest test-unvisited-cells
@@ -150,15 +150,15 @@
   (is (= (m/dead-ends simple-maze) [[[2 2] #{[2 1]}] [[2 0] #{[1 0]}]])))
 
 (deftest test-binary-tree-cell
-  (is (= (m/binary-tree-link-cell grid44 [0 3] :north) nil  ))
+  (is (= (m/binary-tree-link-cell grid44 [0 3] :north) nil))
   (is (= (m/binary-tree-link-cell grid44 [0 0] :north) [0 1]))
-  (is (= (m/binary-tree-link-cell grid44 [0 1] :east)  [0 2]))
-  (is (= (m/binary-tree-link-cell grid44 [2 2] :east)  [2 3]))
+  (is (= (m/binary-tree-link-cell grid44 [0 1] :east) [0 2]))
+  (is (= (m/binary-tree-link-cell grid44 [2 2] :east) [2 3]))
   (is (= (m/binary-tree-link-cell grid44 [2 2] :north) [1 2]))
   (is (= (m/binary-tree-link-cell grid44 [3 0] :north) [2 0]))
-  (is (= (m/binary-tree-link-cell grid44 [3 0] :east)  [3 1]))
+  (is (= (m/binary-tree-link-cell grid44 [3 0] :east) [3 1]))
   (is (= (m/binary-tree-link-cell grid44 [3 3] :north) [2 3]))
-  (is (= (m/binary-tree-link-cell grid44 [3 3] :east)  [2 3])))
+  (is (= (m/binary-tree-link-cell grid44 [3 3] :east) [2 3])))
 
 (deftest test-dijkstra-enumerate
   ; +---+---+---+
@@ -280,12 +280,13 @@
 
 (deftest test-polar-valid-pos
   (let [grid (m/make-polar-grid 8)]
-    (is (true? (m/valid-pos? grid [0 0])))
-    (is (true? (m/valid-pos? grid [1 1])))
-    (is (true? (m/valid-pos? grid [7 45])))
-    (is (false? (m/valid-pos? grid [-1 0])))
-    (is (false? (m/valid-pos? grid [0 1])))
-    (is (false? (m/valid-pos? grid [1 10])))))
+    (are [pos pred] (= (m/valid-pos? grid pos) pred)
+      [0 0]  true
+      [1 1]  true
+      [7 45] true
+      [-1 0] false
+      [0 1]  false
+      [1 10] false)))
 
 (deftest test-polar-count-cells
   (let [grid (m/make-polar-grid 8)]
@@ -302,23 +303,23 @@
 
 (deftest test-northeast
   (are [c n] (= (m/northeast c) n)
-       [2 0] [1 1]
-       [1 1] [1 2]))
+    [2 0] [1 1]
+    [1 1] [1 2]))
 
 (deftest test-northwest
   (are [c n] (= (m/northwest c) n)
-       [1 1] [1 0]
-       [1 2] [0 1]))
+    [1 1] [1 0]
+    [1 2] [0 1]))
 
 (deftest test-southeast
   (are [c n] (= (m/southeast c) n)
-       [2 0] [2 1]
-       [2 1] [3 2]))
+    [2 0] [2 1]
+    [2 1] [3 2]))
 
 (deftest test-southwest
   (are [c n] (= (m/southwest c) n)
-       [2 2] [2 1]
-       [2 1] [3 0]))
+    [2 2] [2 1]
+    [2 1] [3 0]))
 
 (deftest test-hex-cells-seq
   (let [grid (m/make-hex-grid 3 3)]
@@ -328,8 +329,8 @@
 
 (deftest test-hex-cell-neighbors
   (are [cell neighbors] (= (m/cell-neighbors (m/make-hex-grid 5 5) cell) neighbors)
-       [1 1] #{[1 0] [0 1] [1 2] [2 2] [2 1] [2 0]}
-       [2 1] #{[2 0] [1 1] [2 2] [3 2] [3 1] [3 0]}))
+    [1 1] #{[1 0] [0 1] [1 2] [2 2] [2 1] [2 0]}
+    [2 1] #{[2 0] [1 1] [2 2] [3 2] [3 1] [3 0]}))
 
 ;; run
 

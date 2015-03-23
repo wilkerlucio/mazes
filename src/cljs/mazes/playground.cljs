@@ -195,7 +195,7 @@
 
 ;; hex grid helpers
 
-(defn hex-measures [{:keys [width height rows columns]} [y x]]
+(defn hex-measures [{:keys [width columns]} [y x]]
   (let [a (/ width columns 4)
         s (* a 2)
         b (-> (.sqrt js/Math 3) (* s) (/ 2))

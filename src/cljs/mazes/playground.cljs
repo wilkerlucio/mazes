@@ -247,7 +247,8 @@
     (go-sub* pub :select-cell [_ cell] (chan 1 (distinct-consecutive))
       (let [{{:keys [marks] :as grid} :grid} (om/get-props owner)
             route (m/trace-route-back (unserialize-record grid) marks cell)]
-        (om/update! data :render-path route)))
+        (om/update! data :render-path route)
+        (put! bus [:update-layer :path :show true])))
 
     (go-sub pub :mask-dropped [_ file]
       (if (= :rectangular (get (om/get-props owner) :grid-type))

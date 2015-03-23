@@ -1,4 +1,4 @@
-(ns mazes.playground
+(ns ^:figwheel-always mazes.playground
   (:require-macros [wilkerdev.util.macros :refer [bench go-sub go-sub*]]
                    [cljs.core.async.macros :refer [go]])
   (:require [mazes.core :refer [cells-seq valid-pos? linked-to? north east south west
@@ -31,7 +31,9 @@
     :rectangular {:label "Rectangular Grid"
                   :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-grid columns rows))}
     :polar {:label "Polar Grid"
-            :value (fn [{{:keys [rows]} :grid-size}] (m/make-polar-grid rows))}))
+            :value (fn [{{:keys [rows]} :grid-size}] (m/make-polar-grid rows))}
+    :hex {:label "Hexagon Grid"
+          :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-hex-grid columns rows))}))
 
 (def opt-algorithms
   (sorted-map
@@ -91,10 +93,14 @@
   (serialize-type-key [_] ::rectangular)
 
   m/PolarGrid
-  (serialize-type-key [_] ::polar))
+  (serialize-type-key [_] ::polar)
+
+  m/HexGrid
+  (serialize-type-key [_] ::hexagon))
 
 (defmethod unserialize-record* ::rectangular [attrs] (make-grid attrs))
 (defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid nil) attrs))
+(defmethod unserialize-record* ::hexagon [attrs] (merge (m/make-hex-grid nil nil) attrs))
 
 ;; helpers
 
@@ -161,8 +167,12 @@
   (set! (.-ondragover js/window) #(.preventDefault %))
   (set! (.-ondrop js/window) #(.preventDefault %)))
 
+;; rectangular grid helpers
+
 (defn rect-cell-size [{:keys [width height columns rows]}]
   (min (/ width columns) (/ height rows)))
+
+;; polar grid helpers
 
 (defn polar-coordinates [{:keys [rows height] :as grid} [y x]]
   (let [ring-height (-> (/ height rows 2))
@@ -182,6 +192,33 @@
    (-> (* outer-radius (Math/sin theta-cw)) (+ y))
    (-> (* outer-radius (Math/cos theta-ccw)) (+ x))
    (-> (* outer-radius (Math/sin theta-ccw)) (+ y))])
+
+;; hex grid helpers
+
+(defn hex-measures [{:keys [width height rows columns]} [y x]]
+  (let [a (/ width columns 4)
+        s (* a 2)
+        b (-> (.sqrt js/Math 3) (* s) (/ 2))
+        cw (* s 2)
+        ch (* b 2)
+        cx (-> (* 3 a x) (+ s))
+        cy (-> (* y ch) (+ (if (odd? x) (* 2 b) b)))
+        ; f/n = far/near
+        ; n/s/e/w = north/south/east/west
+        x-fw (- cx s) x-nw (- cx a)
+        x-fe (+ cx s) x-ne (+ cx a)
+        y-n (- cy b) y-s (+ cy b)]
+    {:s     s :a a :b b :cw cw :ch ch :cx cx :cy cy
+     :x-fw  x-fw :x-nw x-nw :x-ne x-ne :x-fe x-fe :y-n y-n :y-s y-s
+     ;   1  2
+     ; 6      3
+     ;   5  4
+     :edges [x-nw y-n
+             x-ne y-n
+             x-fe cy
+             x-ne y-s
+             x-nw y-s
+             x-fw cy]}))
 
 ;; svg helpers
 
@@ -303,6 +340,26 @@
                     (if-not (m/linked-to? grid cell (m/polar-cell-cw grid cell)) (svg-line bx by cx cy style))))]
       (apply dom/g nil (dom/circle #js {:cx x :cy y :r (* rows ring-height) :style style}) lines))))
 
+(extend-type m/HexGrid
+  IRenderGrid
+  (draw-cell [grid cell attributes]
+    (let [{[mx my & l] :edges} (hex-measures grid cell)]
+      (dom/path (clj->js (merge {:d (apply str "M" mx "," my " " (map (fn [[x y]] (str "L" x "," y " ")) (partition 2 l)))}
+                                attributes)))))
+  (draw-grid-edges [grid style]
+    (let [link->line (fn [cell]
+                       (let [{:keys [cy x-fw x-nw x-ne x-fe y-n y-s]} (hex-measures grid cell)
+                             lines (->> [(if-not (valid-pos? grid (m/southwest cell)) [x-fw cy x-nw y-s])
+                                         (if-not (valid-pos? grid (m/northwest cell)) [x-fw cy x-nw y-n])
+                                         (if-not (valid-pos? grid (m/north cell)) [x-nw y-n x-ne y-n])
+                                         (if-not (linked-to? grid cell (m/northeast cell)) [x-ne y-n x-fe cy])
+                                         (if-not (linked-to? grid cell (m/southeast cell)) [x-ne y-s x-fe cy])
+                                         (if-not (linked-to? grid cell (m/south cell)) [x-nw y-s x-ne y-s])]
+
+                                        (filter identity))]
+                         (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]
+      (apply dom/g nil (map link->line (cells-seq grid))))))
+
 (defn comp-option [{:keys [label value disabled?]}] (dom/option #js {:value value :disabled disabled?} label))
 
 (defn comp-select [{:keys [options] :as attributes}]
@@ -318,7 +375,7 @@
 
 (defn comp-grid-dead-ends [{:keys [dead-ends] :as grid}]
   (let [mark->cell (fn [cell] (draw-cell grid cell {:fill "rgba(255, 255, 0, 0.3)"}))]
-    (apply dom/g nil (map mark->cell (keys dead-ends)))))
+    (apply dom/g #js {:style #js {:pointerEvents "none"}} (map mark->cell (keys dead-ends)))))
 
 (defn comp-layer-toggler [layer {:keys [data bus]}]
   (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])
@@ -326,7 +383,7 @@
 
 (defn comp-grid-path [grid path]
   (let [mark->cell (fn [cell] (draw-cell grid cell {:fill "rgba(0, 255, 0, 0.3)"}))]
-    (apply dom/g nil (map mark->cell path))))
+    (apply dom/g #js {:style #js {:pointerEvents "none"}} (map mark->cell path))))
 
 (defn file-dropper [[{:keys [onDrop] :as opts} view] _]
   (reify
@@ -339,7 +396,6 @@
                               :onDragEnd   #(.preventDefault %))]
         (dom/div (clj->js attrs)
           view)))))
-
 
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
@@ -402,9 +458,10 @@
                            (merge size))
                   grid-svg
                   (dom/svg (clj->js size)
-                    (if (get-in data [:layers :distance-mash :show])
-                      (comp-grid-backgrounds (assoc grid :color-fn (get-in opt-color-functions [color-fn :value]))
-                                             bus))
+                    (let [color-fn (if (get-in data [:layers :distance-mash :show])
+                                     (get-in opt-color-functions [color-fn :value])
+                                     (fn [_] "transparent"))]
+                      (comp-grid-backgrounds (assoc grid :color-fn color-fn) bus))
                     (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
                     (if (get-in data [:layers :path :show]) (comp-grid-path grid (get data :render-path [])))
                     (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]

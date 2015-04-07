@@ -1,0 +1,26 @@
+{
+  "name": "mazes",
+  "version": "1.0.0",
+  "description": "This repository contains my experiments while reading the book [Mazes for Programmers](https://pragprog.com/book/jbmaze/mazes-for-programmers), it's a really great reading and I recommend to everyone.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wilkerlucio/mazes.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wilkerlucio/mazes/issues"
+  },
+  "homepage": "https://github.com/wilkerlucio/mazes",
+  "dependencies": {
+    "nib": "^1.1.0",
+    "stylus": "^0.50.0"
+  }
+}

@@ -6,11 +6,11 @@
             [mazes.playground-test]
             [cljs.core.async :refer [put!]]))
 
-(defonce app-state
-  (atom mazes.playground/initial-state))
+(defonce app-state (atom mazes.playground/initial-state))
 
 (defn refresh []
-  (mazes.playground/build-at (.-body js/document) app-state))
+  (-> (.getElementById js/document "app-container")
+      (mazes.playground/build-at app-state)))
 
 (fw/start {
            :websocket-url "ws://localhost:3449/figwheel-ws"

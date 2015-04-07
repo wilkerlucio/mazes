@@ -11,10 +11,12 @@
       <sourceFolder url="file://$MODULE_DIR$/src/dev" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/test" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/resources/public/js/compiled" />
+      <excludeFolder url="file://$MODULE_DIR$/resources/public/js/min" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="jdk" jdkName="Clojure" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="mazes node_modules" level="project" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.3" level="project" />
     <orderEntry type="library" name="Leiningen: com.cemerick/clojurescript.test:0.3.3" level="project" />
     <orderEntry type="library" name="Leiningen: figwheel:0.2.5-20150218.182942-2" level="project" />
@@ -23,6 +25,7 @@
     <orderEntry type="library" name="Leiningen: org.clojure/core.async:0.1.346.0-17112a-alpha" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.6" level="project" />
     <orderEntry type="library" name="Leiningen: org.omcljs/om:0.8.8" level="project" />
+    <orderEntry type="library" name="Leiningen: racehub/om-bootstrap:0.4.2" level="project" />
     <orderEntry type="library" name="Leiningen: com.google.javascript/closure-compiler:v20150126" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/data.json:0.2.6" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/google-closure-library:0.0-20140718-946a7d39" level="project" />
@@ -45,5 +48,10 @@
     <orderEntry type="library" name="Leiningen: org.clojure/core.cache:0.6.3" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/data.priority-map:0.0.2" level="project" />
     <orderEntry type="library" name="Leiningen: cljsjs/react:0.12.2-5" level="project" />
+    <orderEntry type="library" name="Leiningen: prismatic/om-tools:0.3.10" level="project" />
+    <orderEntry type="library" name="Leiningen: prismatic/schema:0.3.1" level="project" />
+    <orderEntry type="library" name="Leiningen: prismatic/plumbing:0.3.5" level="project" />
+    <orderEntry type="library" name="Leiningen: de.kotka/lazymap:3.1.0" level="project" />
+    <orderEntry type="library" name="Leiningen: potemkin:0.3.2" level="project" />
   </component>
 </module>

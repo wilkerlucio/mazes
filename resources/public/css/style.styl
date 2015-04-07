@@ -1,6 +1,58 @@
 @import 'nib';
 
-html, body {
+html, body, #app-container {
   width: 100vw;
+  height: 100vh;
+}
+
+body {
+  font-family: 'Source Sans Pro', sans-serif;
+  overflow: hidden;
+}
+
+#app-container {
+  display: flex;
+}
+
+.flex-row {
+  display: flex;
+}
+
+.flex {
+  flex: 1;
+}
+
+.playground-menu {
+  background: #515151;
+  border-right: 1px solid #000;
+  color: white;
+  margin: 0;
+}
+
+.playground-menu-header {
+  font-family: 'Ubuntu', sans-serif;
+  padding: 16px 30px;
+  background: #E2E2E2;
+  color: #000;
+  font-weight: bold;
+  font-size: 23px;
+  text-transform: uppercase;
+}
+
+.playground-menu-content {
+  padding: 20px;
+}
+
+.playground-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-content: stretch;
+  flex-direction: column;
+  padding: 8%;
+}
+
+.playground-svg {
+  width: 100%;
   height: 100vh;
 }

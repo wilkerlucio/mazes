@@ -7,6 +7,8 @@
             [om.core :as om]
             [om.dom :as dom]
             [cljs.core.async :refer [chan put! <!] :as async]
+            [om-bootstrap.button :as bs-b]
+            [om-bootstrap.input :as bs-i]
             [wilkerdev.util :refer [distinct-consecutive]]
             [wilkerdev.util.dom :as domm])
   (:import [goog.fs FileReader]))
@@ -418,59 +420,67 @@
       (let [bus (om/get-state owner :bus)
             flux {:data data :bus bus}
             color-fn (get-in data [:layers :distance-mash :color-fn])]
-        (dom/div nil
+        (dom/div #js {:className "flex-row flex"}
+          (dom/div #js {:className "playground-menu"}
+            (dom/div #js {:className "playground-menu-header"} "Grid Type")
+            (dom/div #js {:className "playground-menu-content"}
+              (comp-select {:value    (name (:grid-type data)) :options (impl->options opt-grid-types data)
+                            :onChange #(put! bus [:update-grid-type (target-value %)])}))
 
-          (dom/label #js {:style #js {:display "block"}}
-            "Grid type: "
-            (comp-select {:value    (name (:grid-type data)) :options (impl->options opt-grid-types data)
-                          :onChange #(put! bus [:update-grid-type (target-value %)])}))
+            (dom/div #js {:className "playground-menu-header"} "Generator Algorithm")
+            (dom/div #js {:className "playground-menu-content"}
+              (comp-select {:value    (name generator) :options (impl->options opt-algorithms data)
+                            :onChange #(put! bus [:update-generator (target-value %)])}))
 
-          (dom/label #js {:style #js {:display "block"}}
-            "Generator algorithm: "
-            (comp-select {:value    (name generator) :options (impl->options opt-algorithms data)
-                          :onChange #(put! bus [:update-generator (target-value %)])}))
+            (dom/div #js {:className "playground-menu-header"} "Grid Size")
+            (dom/div #js {:className "playground-menu-content"}
+              (if-not (= :polar (:grid-type data))
+                (bs-i/input {:type       "number" :value (:columns grid-size) :min 1 :max 100
+                             :on-change  #(put! bus [:update-grid-size :columns (target-value %)])
+                             :standalone true}))
+              (bs-i/input {:type       "number" :value (:rows grid-size) :min 1 :max 100
+                           :on-change  #(put! bus [:update-grid-size :rows (target-value %)])
+                           :standalone true}))
 
-          (dom/label #js {:style #js {:display "block"}}
-            "Grid size: "
-            (if-not (= :polar (:grid-type data))
-              (dom/input #js {:type     "number" :value (:columns grid-size) :min 1 :max 100
-                              :onChange #(put! bus [:update-grid-size :columns (target-value %)])}))
-            (dom/input #js {:type     "number" :value (:rows grid-size) :min 1 :max 100
-                            :onChange #(put! bus [:update-grid-size :rows (target-value %)])}))
-          (dom/button #js {:onClick #(put! bus [:generate-maze])
-                           :style #js {:marginTop "10px"}} "Generate maze")
 
-          (dom/div nil
-            "Distance Gradient layer: "
-            (comp-layer-toggler :distance-mash flux)
-            (comp-select {:value    (name color-fn) :options (impl->options opt-color-functions data)
-                          :onChange #(put! bus [:update-layer :distance-mash :color-fn (keyword (target-value %))])}))
-          (dom/div nil
-            "Dead Ends layer: "
-            (comp-layer-toggler :dead-ends flux))
-          (dom/div nil
-            "Path resolution layer: "
-            (comp-layer-toggler :path flux))
-          (dom/div nil
-            "Grid Lines layer: "
-            (comp-layer-toggler :grid-lines flux))
+            (dom/div #js {:className "playground-menu-header"} "Layers")
+            (dom/div #js {:className "playground-menu-content"}
+              (dom/div nil
+                "Distance Gradient layer: "
+                (comp-layer-toggler :distance-mash flux)
+                (comp-select {:value    (name color-fn) :options (impl->options opt-color-functions data)
+                              :onChange #(put! bus [:update-layer :distance-mash :color-fn (keyword (target-value %))])}))
+              (dom/div nil
+                "Dead Ends layer: "
+                (comp-layer-toggler :dead-ends flux))
+              (dom/div nil
+                "Path resolution layer: "
+                (comp-layer-toggler :path flux))
+              (dom/div nil
+                "Grid Lines layer: "
+                (comp-layer-toggler :grid-lines flux)))
 
-          (dom/hr nil)
+            (dom/div #js {:className "text-center"}
+              (bs-b/button {:on-click #(put! bus [:generate-maze])
+                            :bs-style "success" :bs-size "large"} "Generate maze")))
 
-          (if-let [grid (:grid data)]
-            (let [size {:width 600 :height 600}
-                  grid (-> (unserialize-record grid)
-                           (merge size))
-                  grid-svg
-                  (dom/svg (clj->js size)
-                    (let [color-fn (if (get-in data [:layers :distance-mash :show])
-                                     (get-in opt-color-functions [color-fn :value])
-                                     (fn [_] "transparent"))]
-                      (comp-grid-backgrounds (assoc grid :color-fn color-fn) bus))
-                    (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
-                    (if (get-in data [:layers :path :show]) (comp-grid-path grid (get data :render-path [])))
-                    (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]
-              (om/build file-dropper [{:onDrop #(put! bus [:mask-dropped (first %)])} grid-svg]))))))))
+          (dom/div #js {:className "playground-content flex"}
+            (if-let [grid (:grid data)]
+              (let [size {:width 600 :height 600}
+                    grid (-> (unserialize-record grid)
+                             (merge size))
+                    grid-svg
+                    (dom/svg (clj->js (assoc size
+                                        :className "playground-svg"
+                                        :viewBox "-5 -5 610 610"))
+                             (let [color-fn (if (get-in data [:layers :distance-mash :show])
+                                              (get-in opt-color-functions [color-fn :value])
+                                              (fn [_] "transparent"))]
+                               (comp-grid-backgrounds (assoc grid :color-fn color-fn) bus))
+                             (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
+                             (if (get-in data [:layers :path :show]) (comp-grid-path grid (get data :render-path [])))
+                             (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]
+                grid-svg))))))))
 
 ;; initializer
 

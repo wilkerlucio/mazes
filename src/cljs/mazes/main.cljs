@@ -4,5 +4,5 @@
 
 (def app-state (atom mazes.playground/initial-state))
 
-(let [{:keys [bus]} (mazes.playground/build-at (.-body js/document) app-state)]
+(let [{:keys [bus]} (mazes.playground/build-at (.getElementById js/document "app-container") app-state)]
   (put! bus [:generate-maze]))

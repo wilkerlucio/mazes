@@ -1,5 +1,4 @@
 (ns ^:figwheel-always mazes.core
-  (:require-macros [wilkerdev.util.macros :refer [bench]])
   (:require [clojure.string :as str]
             [clojure.set :as set]))
 
@@ -129,17 +128,10 @@
 
 ;; hex grid
 
-(defn northeast [[y x]]
-  [(if (even? x) (dec y) y) (inc x)])
-
-(defn northwest [[y x]]
-  [(if (even? x) (dec y) y) (dec x)])
-
-(defn southeast [[y x]]
-  [(if (odd? x) (inc y) y) (inc x)])
-
-(defn southwest [[y x]]
-  [(if (odd? x) (inc y) y) (dec x)])
+(defn northeast [[y x]] [(if (even? x) (dec y) y) (inc x)])
+(defn northwest [[y x]] [(if (even? x) (dec y) y) (dec x)])
+(defn southeast [[y x]] [(if (odd? x) (inc y) y) (inc x)])
+(defn southwest [[y x]] [(if (odd? x) (inc y) y) (dec x)])
 
 (defrecord HexGrid [rows columns links]
   IGrid
@@ -175,9 +167,8 @@
       (update-in [:links cell-b] #(conj (or % #{}) cell-a))))
 
 (defn link-path [grid path]
-  (reduce (fn [grid [ca cb]] (link-cells grid ca cb))
-          grid
-          (partition 2 1 path)))
+  (->> (partition 2 1 path)
+       (reduce (fn [grid [ca cb]] (link-cells grid ca cb)) grid)))
 
 (defn linked-to? [grid cell-a cell-b]
   (contains? (get-in grid [:links cell-a] #{}) cell-b))

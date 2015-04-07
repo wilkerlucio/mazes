@@ -138,7 +138,10 @@
     (let [img (<! (load-image png-data))
           width (.-width img) height (.-height img)
           canvas (create-canvas width height)
-          ctx (.getContext canvas "2d")]
+          ctx (.getContext canvas "2d")
+          get-y #(int (/ % width))
+          get-x #(mod % width)
+          pos->coord (juxt get-y get-x)]
       (.drawImage ctx img 0 0)
       (let [mask (->> (.getImageData ctx 0 0 width height)
                       (.-data)
@@ -146,7 +149,8 @@
                       (partition 4)                         ; [[r g b a] [r g b a] ...]
                       (map vector (range))                  ; [[0 [r g b a] [1 [r g b a]] ...]
                       (filter (fn [[_ [r g b]]] (= 0 r g b))) ; keep blacks
-                      (map (fn [[pos]] [(int (/ pos width)) (mod pos width)]))
+                      (map first)                           ; keep position, discard colors
+                      (map pos->coord)
                       (set))]
         {:rows height :columns width :mask mask}))))
 

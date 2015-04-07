@@ -33,7 +33,7 @@
                          :cache-analysis true }}
              {:id "min"
               :source-paths ["src/cljs"]
-              :compiler {:output-to "resources/public/js/compiled/mazes.js"
+              :compiler {:output-to "resources/public/js/min/mazes.js"
                          :main mazes.core
                          :optimizations :advanced
                          :pretty-print false}}]}

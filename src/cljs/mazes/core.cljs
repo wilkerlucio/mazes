@@ -156,6 +156,24 @@
 (defn cell-upright? [[y x]]
   (even? (+ y x)))
 
+(defrecord TriangleGrid [rows columns links]
+  IGrid
+  (cells-seq [_] (for [y (range rows) x (range columns)] [y x]))
+
+  (valid-pos? [_ [y x]]
+    (and (>= x 0) (< x columns)
+         (>= y 0) (< y rows)))
+
+  (count-cells [_] (* rows columns))
+
+  (rand-cell [_] [(rand-int rows) (rand-int columns)])
+
+  (cell-neighbors [_ cell]
+    #{(west cell) (east cell) (if (cell-upright? cell) (south cell) (north cell))}))
+
+(defn make-triangle-grid [rows cols]
+  (TriangleGrid. rows cols {}))
+
 ;; common grid functions
 
 (defn visit-cell [grid cell]

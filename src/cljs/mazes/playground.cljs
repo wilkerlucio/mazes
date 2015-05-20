@@ -35,7 +35,9 @@
     :polar {:label "Polar Grid"
             :value (fn [{{:keys [rows]} :grid-size}] (m/make-polar-grid rows))}
     :hex {:label "Hexagon Grid"
-          :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-hex-grid columns rows))}))
+          :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-hex-grid columns rows))}
+    :triangle {:label "Triangle Grid"
+               :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-triangle-grid columns rows))}))
 
 (def opt-algorithms
   (sorted-map
@@ -98,11 +100,15 @@
   (serialize-type-key [_] ::polar)
 
   m/HexGrid
-  (serialize-type-key [_] ::hexagon))
+  (serialize-type-key [_] ::hexagon)
+
+  m/TriangleGrid
+  (serialize-type-key [_] ::triangle))
 
 (defmethod unserialize-record* ::rectangular [attrs] (make-grid attrs))
 (defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid nil) attrs))
 (defmethod unserialize-record* ::hexagon [attrs] (merge (m/make-hex-grid nil nil) attrs))
+(defmethod unserialize-record* ::triangle [attrs] (merge (m/make-triangle-grid nil nil) attrs))
 
 ;; helpers
 
@@ -225,6 +231,24 @@
              x-ne y-s
              x-nw y-s
              x-fw cy]}))
+
+;; triangle grid helpers
+
+(defn triangle-measures [{:keys [width columns]} [y x :as cell]]
+  (let [s (* 1.8 (/ width columns))
+        cw s
+        chw (/ cw 2)
+        ch (-> (* s (.sqrt js/Math 3)) (/ 2))
+        chh (/ ch 2)
+        cx (+ chw (* x chw))
+        cy (+ chh (* y ch))
+        wx (- cx chw)
+        mx cx
+        ex (+ cx chw)
+        [ay by] (if (m/cell-upright? cell)
+                  [(- cy chh) (+ cy chh)]
+                  [(+ cy chh) (- cy chh)])]
+    {:wx wx :mx mx :ex ex :ay ay :by by :edges [wx by mx ay ex by]}))
 
 ;; svg helpers
 
@@ -362,6 +386,25 @@
                                          (if-not (linked-to? grid cell (m/northeast cell)) [x-ne y-n x-fe cy])
                                          (if-not (linked-to? grid cell (m/southeast cell)) [x-ne y-s x-fe cy])
                                          (if-not (linked-to? grid cell (m/south cell)) [x-nw y-s x-ne y-s])]
+
+                                        (filter identity))]
+                         (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]
+      (apply dom/g nil (map link->line (cells-seq grid))))))
+
+(extend-type m/TriangleGrid
+  IRenderGrid
+  (draw-cell [grid cell attributes]
+    (let [{[mx my & l] :edges} (triangle-measures grid cell)]
+      (dom/path (clj->js (merge {:d (apply str "M" mx "," my " " (map (fn [[x y]] (str "L" x "," y " ")) (partition 2 l)))}
+                                attributes)))))
+  (draw-grid-edges [grid style]
+    (let [link->line (fn [cell]
+                       (let [{:keys [wx mx ex ay by]} (triangle-measures grid cell)
+                             no-south (and (m/cell-upright? cell) (false? (valid-pos? grid (m/south cell))))
+                             not-linked (and (not (m/cell-upright? cell)) (not (linked-to? grid cell (m/north cell))))
+                             lines (->> [(if-not (valid-pos? grid (m/west cell)) [wx by mx ay])
+                                         (if-not (linked-to? grid cell (m/east cell)) [ex by mx ay])
+                                         (if (or no-south not-linked) [ex by wx by])]
 
                                         (filter identity))]
                          (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]

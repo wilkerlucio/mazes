@@ -342,6 +342,11 @@
     [1 1] true
     [1 2] false))
 
+(deftest test-triangle-cell-neighbors
+  (are [cell neighbors] (= (m/cell-neighbors (m/make-triangle-grid 5 5) cell) neighbors)
+    [0 2] #{[0 1] [0 3] [1 2]}
+    [1 2] #{[1 1] [1 3] [0 2]}))
+
 ;; run
 
 (run-tests 'mazes.core-test)

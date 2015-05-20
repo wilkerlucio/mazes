@@ -10,8 +10,10 @@
       <sourceFolder url="file://$MODULE_DIR$/src/cljs" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/dev" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/test" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/.repl" />
       <excludeFolder url="file://$MODULE_DIR$/resources/public/js/compiled" />
       <excludeFolder url="file://$MODULE_DIR$/resources/public/js/min" />
+      <excludeFolder url="file://$MODULE_DIR$/resources/public/js/white" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="jdk" jdkName="Clojure" jdkType="JavaSDK" />

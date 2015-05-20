@@ -1,8 +1,6 @@
 (ns mazes.core-test
-  (:require-macros [cemerick.cljs.test
-                    :refer (is are deftest with-test testing test-var done)]
-                   [cljs.core.async.macros :refer [go]])
-  (:require [cemerick.cljs.test :as t]
+  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require [cljs.test :refer-macros [is are deftest run-tests]]
             [mazes.core :as m]
             [cljs.core.async :refer [<!]]))
 
@@ -47,13 +45,14 @@
 (deftest test-south (is (= (m/south [0 0]) [1 0])))
 
 (deftest test-valid-pos?
-  (is (true? (m/valid-pos? grid44 [0 0])))
-  (is (true? (m/valid-pos? grid44 [1 1])))
-  (is (true? (m/valid-pos? grid44 [3 3])))
-  (is (false? (m/valid-pos? grid44 [-1 0])))
-  (is (false? (m/valid-pos? grid44 [0 -1])))
-  (is (false? (m/valid-pos? grid44 [0 4])))
-  (is (false? (m/valid-pos? grid44 [4 3])))
+  (are [pos pred] (= (m/valid-pos? grid44 pos) pred)
+    [0 0]  true
+    [1 1]  true
+    [3 3]  true
+    [-1 0] false
+    [0 -1] false
+    [0 4]  false
+    [4 3]  false)
   (is (false? (m/valid-pos? masked-maze [1 1]))))
 
 (deftest test-cells-seq
@@ -332,6 +331,17 @@
     [1 1] #{[1 0] [0 1] [1 2] [2 2] [2 1] [2 0]}
     [2 1] #{[2 0] [1 1] [2 2] [3 2] [3 1] [3 0]}))
 
+;; triangle grid
+
+(deftest test-triangle-upright?
+  (are [cell upright?] (= (m/cell-upright? cell) upright?)
+    [0 0] true
+    [0 1] false
+    [0 2] true
+    [1 0] false
+    [1 1] true
+    [1 2] false))
+
 ;; run
 
-(t/test-ns 'mazes.core-test)
+(run-tests 'mazes.core-test)

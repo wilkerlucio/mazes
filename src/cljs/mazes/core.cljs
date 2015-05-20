@@ -151,6 +151,11 @@
 (defn make-hex-grid [rows cols]
   (HexGrid. rows cols {}))
 
+;; triangle grid
+
+(defn cell-upright? [[y x]]
+  (even? (+ y x)))
+
 ;; common grid functions
 
 (defn visit-cell [grid cell]

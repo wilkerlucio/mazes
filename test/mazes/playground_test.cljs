@@ -48,8 +48,4 @@
   (let [grid (-> (m/make-triangle-grid 10 10)
                  (assoc :width 156 :height 183))]
     (is (= (round-results (p/triangle-measures grid [0 0]))
-           {:wx 0 :mx 8 :ex 16 :ay 0 :by 14 :edges [0 14 8 0 16 14]}))))
-
-;; run
-
-(run-tests 'mazes.playground-test)
+           {:wx 0, :mx 14, :ex 28, :ay 0, :by 24, :edges [0 24 14 0 28 24]}))))

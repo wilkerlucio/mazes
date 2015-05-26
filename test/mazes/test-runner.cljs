@@ -36,6 +36,6 @@
            :websocket-url "ws://localhost:3449/figwheel-ws"
            :autoload true
            :build-id "test"
-           :on-jsload (fn [] (runner))})
+           :on-jsload runner})
 
 (runner)

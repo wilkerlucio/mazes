@@ -131,19 +131,31 @@
   (is (= (m/valid-neighbors grid44 [1 1]) #{[0 1] [1 2] [2 1] [1 0]})))
 
 (deftest test-accessible-neighbors
-  (is (= (m/accessible-neighbors simple-maze [0 0]) #{[0 1] [1 0]}))
-  (is (= (m/accessible-neighbors simple-maze [0 1]) #{[0 2] [0 0]}))
-  (is (= (m/accessible-neighbors simple-maze [0 2]) #{[1 2] [0 1]}))
-  (is (= (m/accessible-neighbors simple-maze [1 0]) #{[0 0] [2 0]}))
-  (is (= (m/accessible-neighbors simple-maze [1 1]) #{[1 2] [2 1]}))
-  (is (= (m/accessible-neighbors simple-maze [1 2]) #{[0 2] [1 1]}))
-  (is (= (m/accessible-neighbors simple-maze [2 0]) #{[1 0]}))
-  (is (= (m/accessible-neighbors simple-maze [2 1]) #{[1 1] [2 2]}))
-  (is (= (m/accessible-neighbors simple-maze [2 2]) #{[2 1]})))
+  (are [pos neighbors] (= (m/accessible-neighbors simple-maze pos) neighbors)
+    [0 0] #{[0 1] [1 0]}
+    [0 1] #{[0 2] [0 0]}
+    [0 2] #{[1 2] [0 1]}
+    [1 0] #{[0 0] [2 0]}
+    [1 1] #{[1 2] [2 1]}
+    [1 2] #{[0 2] [1 1]}
+    [2 0] #{[1 0]}
+    [2 1] #{[1 1] [2 2]}
+    [2 2] #{[2 1]}))
 
 (deftest test-unvisited-neighbors
   (is (= (m/unvisited-neighbors (assoc grid44 :links {[0 1] #{}}) [0 0])
          #{[1 0]})))
+
+(deftest test-unlinked-neighbors
+  (are [pos neighbors] (= (m/unlinked-neighbors simple-maze pos) neighbors)
+    [0 0] #{}
+    [0 1] #{[1 1]}
+    [0 2] #{}
+    [1 0] #{[1 1]}
+    [1 1] #{[0 1] [1 0]}
+    [1 2] #{[2 2]}
+    [2 0] #{[2 1]}
+    [2 1] #{[2 0]}))
 
 (deftest test-dead-ends
   (is (= (m/dead-ends simple-maze) [[[2 2] #{[2 1]}] [[2 0] #{[1 0]}]])))

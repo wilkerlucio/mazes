@@ -23,7 +23,7 @@
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 
-(defrecord RectangularGrid [rows columns links mask]
+(defrecord RectangularGrid [rows columns links]
   IGrid
   (cells-seq [this]
     (for [y (range rows) x (range columns)
@@ -31,27 +31,21 @@
           :when (valid-pos? this cell)]
       cell))
 
-  (valid-pos? [_ [y x :as cell]]
+  (valid-pos? [_ [y x]]
     (and (>= x 0) (< x columns)
-         (>= y 0) (< y rows)
-         (not (contains? mask cell))))
+         (>= y 0) (< y rows)))
 
-  (count-cells [this]
-    (let [valid-mask-positions (filter (partial valid-pos? (assoc this :mask #{})) mask)]
-      (-> (* rows columns)
-          (- (count valid-mask-positions)))))
+  (count-cells [_] (* rows columns))
 
   (rand-cell [_]
-    (loop []
-      (let [cell [(rand-int rows) (rand-int columns)]]
-        (if (contains? mask cell) (recur) cell))))
+    [(rand-int rows) (rand-int columns)])
 
   (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)}))
 
 (defn make-grid
   ([attrs] (merge (make-grid 0 0) attrs))
   ([rows columns]
-   (RectangularGrid. rows columns {} #{})))
+   (RectangularGrid. rows columns {})))
 
 ;; polar grid
 
@@ -173,6 +167,31 @@
 
 (defn make-triangle-grid [rows cols]
   (TriangleGrid. rows cols {}))
+
+;; masked grid
+
+(defrecord MaskedGrid [grid mask]
+  IGrid
+  (cells-seq [_] (cells-seq grid))
+
+  (valid-pos? [_ cell]
+    (and (valid-pos? grid cell)
+         (not (contains? mask cell))))
+
+  (count-cells [_]
+    (let [valid-mask-positions (filter (partial valid-pos? grid) mask)]
+      (-> (count-cells grid)
+          (- (count valid-mask-positions)))))
+
+  (rand-cell [_]
+    (loop []
+      (let [cell (rand-cell grid)]
+        (if (contains? mask cell) (recur) cell))))
+
+  (cell-neighbors [_ cell] (cell-neighbors grid cell)))
+
+(defn masked-grid [grid mask]
+  (MaskedGrid. grid mask))
 
 ;; common grid functions
 

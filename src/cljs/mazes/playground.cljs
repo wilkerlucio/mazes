@@ -81,35 +81,41 @@
 ;; serialization
 
 (defprotocol ISerialize
-  (serialize-type-key [this]))
+  (serialize-record [this]))
 
-(defn serialize-record [grid]
+(defn simple-serialize-grid [grid type]
   (-> (into {} grid)
-      (assoc :grid-type (serialize-type-key grid))))
+      (assoc :grid-type type)))
 
 (defmulti unserialize-record* :grid-type)
 
 (defn unserialize-record [grid]
-  (-> (unserialize-record* grid)
-      (dissoc :grid-type)))
+  (-> (unserialize-record* grid)))
 
 (extend-protocol ISerialize
   m/RectangularGrid
-  (serialize-type-key [_] ::rectangular)
+  (serialize-record [grid] (simple-serialize-grid grid ::rectangular))
 
   m/PolarGrid
-  (serialize-type-key [_] ::polar)
+  (serialize-record [grid] (simple-serialize-grid grid ::polar))
 
   m/HexGrid
-  (serialize-type-key [_] ::hexagon)
+  (serialize-record [grid] (simple-serialize-grid grid ::hexagon))
 
   m/TriangleGrid
-  (serialize-type-key [_] ::triangle))
+  (serialize-record [grid] (simple-serialize-grid grid ::triangle))
+
+  m/MaskedGrid
+  (serialize-record [{:keys [grid mask]}]
+    {:grid-type ::masked
+     :grid (serialize-record grid)
+     :mask mask}))
 
 (defmethod unserialize-record* ::rectangular [attrs] (make-grid attrs))
 (defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid nil) attrs))
 (defmethod unserialize-record* ::hexagon [attrs] (merge (m/make-hex-grid nil nil) attrs))
 (defmethod unserialize-record* ::triangle [attrs] (merge (m/make-triangle-grid nil nil) attrs))
+(defmethod unserialize-record* ::masked [{:keys [grid mask]}] (m/masked-grid (unserialize-record grid) mask))
 
 ;; helpers
 

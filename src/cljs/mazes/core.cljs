@@ -244,20 +244,23 @@
        (remove (partial linked-to? grid cell))
        (set)))
 
-(defn dead-ends [{:keys [links]}]
-  (->> (filter (fn [[_ v]] (= (count v) 1)) links)
-       (keys)
+(defn dead-end? [{:keys [links]} cell] (= 1 (count (links cell))))
+
+(defn dead-ends [{:keys [links] :as grid}]
+  (->> (keys links)
+       (filter (partial dead-end? grid))
        (set)))
 
 (defn braid [grid p]
-  (reduce (fn [{:keys [links] :as grid} cell]
-            (if (and (= 1 (count (links cell)))
-                     (<= (rand) p))
-              (let [neighbors (-> (unlinked-neighbors grid cell))
-                    neighbor  (or (->> neighbors (filter #(= 1 (count (links %)))) (first))
-                                  (-> neighbors (vec) (rand-nth)))]
-                (link-cells grid cell neighbor))
-              grid))
+  (reduce (fn [grid cell]
+            (let [dead-end? (partial dead-end? grid)]
+              (if (and (dead-end? cell)
+                       (<= (rand) p))
+                (let [neighbors (-> (unlinked-neighbors grid cell))
+                      neighbor  (or (->> neighbors (filter dead-end?) (first))
+                                    (-> neighbors (vec) (rand-nth)))]
+                  (link-cells grid cell neighbor))
+                grid)))
           grid (dead-ends grid)))
 
 ;; maze generators

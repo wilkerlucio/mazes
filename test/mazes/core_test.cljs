@@ -167,6 +167,13 @@
     [2 0] #{[2 1]}
     [2 1] #{[2 0]}))
 
+(deftest test-dead-end?
+  (are [pos dead?] (= (m/dead-end? simple-maze pos) dead?)
+    [0 0] false
+    [2 0] true
+    [2 1] false
+    [2 2] true))
+
 (deftest test-dead-ends
   (is (= (m/dead-ends simple-maze) #{[2 0] [2 2]})))
 

@@ -18,8 +18,8 @@
 
 ;; rectangular grid
 
-(defn east  [[y x]] [y (inc x)])
-(defn west  [[y x]] [y (dec x)])
+(defn east [[y x]] [y (inc x)])
+(defn west [[y x]] [y (dec x)])
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 
@@ -56,11 +56,11 @@
              {:pre (>= y 0)}
              (if (= y 0)
                1
-               (let [radius (/ y rows)
+               (let [radius        (/ y rows)
                      circumference (* 2 Math/PI radius)
-                     previous (polar-count-row-cells rows (dec y))
-                     estimated (/ circumference previous)
-                     ratio (/ estimated (/ 1 rows))]
+                     previous      (polar-count-row-cells rows (dec y))
+                     estimated     (/ circumference previous)
+                     ratio         (/ estimated (/ 1 rows))]
                  (* previous (.round js/Math ratio)))))))
 
 (defn polar-cell-cw [{:keys [rows]} [y x :as cell]]
@@ -77,7 +77,7 @@
   (if (= y 0)
     [(dec y) x]
     (let [prev-count (polar-count-row-cells rows (dec y))
-          ratio (min 2 (/ (polar-count-row-cells rows y) prev-count))]
+          ratio      (min 2 (/ (polar-count-row-cells rows y) prev-count))]
       [(dec y) (mod (->> (/ x ratio) (.floor js/Math))
                     prev-count)])))
 
@@ -86,7 +86,7 @@
     (= y 0) (set (make-polar-row 1 (polar-count-row-cells rows 1)))
     (>= y (dec rows)) #{}
     :else (let [next-count (polar-count-row-cells rows (inc y))
-                ratio (/ next-count (polar-count-row-cells rows y))]
+                ratio      (/ next-count (polar-count-row-cells rows y))]
             (if (= ratio 1)
               #{[(inc y) x]}
               (set (for [c (range ratio)]
@@ -244,19 +244,31 @@
        (remove (partial linked-to? grid cell))
        (set)))
 
-(defn dead-ends [{:keys [links]}] (filter (fn [[_ v]] (= (count v) 1)) links))
+(defn dead-ends [{:keys [links]}]
+  (->> (filter (fn [[_ v]] (= (count v) 1)) links)
+       (keys)
+       (set)))
 
-(defn braid [grid])
+(defn braid [grid p]
+  (reduce (fn [{:keys [links] :as grid} cell]
+            (if (and (= 1 (count (links cell)))
+                     (<= (rand) p))
+              (let [neighbors (-> (unlinked-neighbors grid cell))
+                    neighbor  (or (->> neighbors (filter #(= 1 (count (links %)))) (first))
+                                  (-> neighbors (vec) (rand-nth)))]
+                (link-cells grid cell neighbor))
+              grid))
+          grid (dead-ends grid)))
 
 ;; maze generators
 
 (defn binary-tree-link-cell [{:keys [rows columns] :as grid} [y x :as cell] direction]
   (cond
-    (not (valid-pos? grid cell))      nil
+    (not (valid-pos? grid cell)) nil
     (and (= y 0) (= x (dec columns))) nil
-    (= y 0)              (east cell)
-    (= x (dec rows))     (north cell)
-    (= :east direction)  (east cell)
+    (= y 0) (east cell)
+    (= x (dec rows)) (north cell)
+    (= :east direction) (east cell)
     (= :north direction) (north cell)))
 
 (defn gen-binary-tree [grid]
@@ -273,8 +285,8 @@
                         (swap! past conj cell)
                         (let [eastern-boundary? (not (valid-pos? grid (east cell)))
                               norther-boundary? (not (valid-pos? grid (north cell)))
-                              close-out? (or eastern-boundary? (and (not norther-boundary?)
-                                                                    (= 0 (rand-int 2))))]
+                              close-out?        (or eastern-boundary? (and (not norther-boundary?)
+                                                                           (= 0 (rand-int 2))))]
                           (if close-out?
                             (let [member (rand-nth @past)]
                               (reset! past [])
@@ -327,7 +339,7 @@
           (let [[next linkable-neighbors]
                 (->> (unvisited-cells grid)
                      (keep (fn [c]
-                             (let [neighbors (valid-neighbors grid c)
+                             (let [neighbors   (valid-neighbors grid c)
                                    connections (set/intersection links neighbors)]
                                (if (seq connections)
                                  [c (vec connections)]))))
@@ -386,14 +398,14 @@
   ([grid] (ascii-grid grid (fn [_ _] " ")))
   ([{:keys [columns rows] :as grid} content-maker]
    (let [str-repeat #(str/join "" (repeat %1 %2))
-         header (str "+" (str-repeat columns "---+") "\n")
-         lines (for [row (range rows)
-                     :let [parts (for [column (range columns)
-                                       :let [cell [row column]]]
-                                   [(str " " (content-maker grid cell) " " (if (linked-to? grid cell (east cell)) " " "|"))
-                                    (str (if (linked-to? grid cell (south cell)) "   " "---") "+")])]]
-                 (str "|" (str/join "" (map first parts)) "\n"
-                      "+" (str/join "" (map second parts)) "\n"))]
+         header     (str "+" (str-repeat columns "---+") "\n")
+         lines      (for [row (range rows)
+                          :let [parts (for [column (range columns)
+                                            :let [cell [row column]]]
+                                        [(str " " (content-maker grid cell) " " (if (linked-to? grid cell (east cell)) " " "|"))
+                                         (str (if (linked-to? grid cell (south cell)) "   " "---") "+")])]]
+                      (str "|" (str/join "" (map first parts)) "\n"
+                           "+" (str/join "" (map second parts)) "\n"))]
      (apply str header lines))))
 
 ; other

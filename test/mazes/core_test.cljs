@@ -168,7 +168,20 @@
     [2 1] #{[2 0]}))
 
 (deftest test-dead-ends
-  (is (= (m/dead-ends simple-maze) [[[2 2] #{[2 1]}] [[2 0] #{[1 0]}]])))
+  (is (= (m/dead-ends simple-maze) #{[2 0] [2 2]})))
+
+; +---+---+---+
+; |           |
+; +   +---+   +
+; |   |       |
+; +   +   +   +
+; |           |
+; +---+---+---+
+(deftest test-braid
+  (is (= (:links (m/braid simple-maze 1))
+         {[0 0] #{[1 0] [0 1]}, [0 1] #{[0 0] [0 2]},       [0 2] #{[1 2] [0 1]}
+          [1 0] #{[0 0] [2 0]}, [1 1] #{[2 1] [1 2]},       [1 2] #{[1 1] [0 2] [2 2]}
+          [2 0] #{[1 0] [2 1]}, [2 1] #{[2 2] [1 1] [2 0]}, [2 2] #{[2 1] [1 2]}})))
 
 (deftest test-binary-tree-cell
   (is (= (m/binary-tree-link-cell grid44 [0 3] :north) nil))

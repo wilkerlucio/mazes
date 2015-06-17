@@ -425,7 +425,7 @@
 
 (defn comp-grid-dead-ends [{:keys [dead-ends] :as grid}]
   (let [mark->cell (fn [cell] (draw-cell grid cell {:fill "rgba(255, 255, 0, 0.3)"}))]
-    (apply dom/g #js {:style #js {:pointerEvents "none"}} (map mark->cell (keys dead-ends)))))
+    (apply dom/g #js {:style #js {:pointerEvents "none"}} (map mark->cell dead-ends))))
 
 (defn comp-layer-toggler [layer {:keys [data bus]}]
   (dom/input #js {:type "checkbox" :checked (get-in data [:layers layer :show])

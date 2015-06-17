@@ -11,6 +11,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/dev" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/test" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/.repl" />
+      <excludeFolder url="file://$MODULE_DIR$/out" />
       <excludeFolder url="file://$MODULE_DIR$/resources/public/js/compiled" />
       <excludeFolder url="file://$MODULE_DIR$/resources/public/js/min" />
       <excludeFolder url="file://$MODULE_DIR$/resources/public/js/test" />
@@ -22,7 +23,7 @@
     <orderEntry type="library" name="mazes node_modules" level="project" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.3" level="project" />
     <orderEntry type="library" name="Leiningen: figwheel:0.3.3" level="project" />
-    <orderEntry type="library" name="Leiningen: org.clojure/clojure:1.7.0-beta3" level="project" />
+    <orderEntry type="library" name="Leiningen: org.clojure/clojure:1.7.0-RC1" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/clojurescript:0.0-3269" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.async:0.1.346.0-17112a-alpha" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.6" level="project" />

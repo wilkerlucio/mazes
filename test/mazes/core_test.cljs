@@ -1,4 +1,4 @@
-(ns mazes.core-test
+(ns ^:figwheel-always mazes.core-test
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [cljs.test :refer-macros [is are deftest run-tests]]
             [mazes.core :as m]
@@ -29,15 +29,11 @@
                      [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
                      [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}})))
 
-(def masked-maze
-  (-> (m/make-grid 3 3)
-      (assoc :mask #{[1 1]})))
-
 (deftest test-make-grid
-  (is (= (into {} (m/make-grid {:rows 2 :columns 5 :links {[0 0] #{}} :mask #{[1 2]}}))
-         {:rows 2 :columns 5 :links {[0 0] #{}} :mask #{[1 2]}}))
+  (is (= (into {} (m/make-grid {:rows 2 :columns 5 :links {[0 0] #{}}}))
+         {:rows 2 :columns 5 :links {[0 0] #{}}}))
   (is (= (into {} (m/make-grid 4 3))
-         {:rows 4 :columns 3 :links {} :mask #{}})))
+         {:rows 4 :columns 3 :links {}})))
 
 (deftest test-east (is (= (m/east [0 0]) [0 1])))
 (deftest test-west (is (= (m/west [0 1]) [0 0])))
@@ -52,32 +48,46 @@
     [-1 0] false
     [0 -1] false
     [0 4]  false
-    [4 3]  false)
-  (is (false? (m/valid-pos? masked-maze [1 1]))))
+    [4 3]  false))
 
 (deftest test-cells-seq
   (is (= (m/cells-seq (m/make-grid 2 2))
-         [[0 0] [0 1] [1 0] [1 1]]))
+         [[0 0] [0 1] [1 0] [1 1]])))
+
+(deftest test-count-cells
+  (is (= (m/count-cells grid44) 16))
+  (is (= (m/count-cells simple-maze) 9)))
+
+(deftest test-rand-cell
+  (let [[y x] (m/rand-cell grid44)]
+    (is (and (>= y 0) (< y 4)))
+    (is (and (>= x 0) (< x 4)))))
+
+(deftest test-cell-neighbors
+  (is (= (m/cell-neighbors grid44 [1 1]) #{[0 1] [1 2] [2 1] [1 0]})))
+
+;; testing masked grid
+
+(def masked-maze
+  (-> (m/make-grid 3 3)
+      (m/masked-grid #{[1 1]})))
+
+(deftest test-masked-valid-pos?
+  (is (false? (m/valid-pos? masked-maze [1 1]))))
+
+(deftest test-masked-cells-seq
   (is (= (m/cells-seq masked-maze)
          [[0 0] [0 1] [0 2]
           [1 0] [1 2]
           [2 0] [2 1] [2 2]])))
 
-(deftest test-count-cells
-  (is (= (m/count-cells grid44) 16))
-  (is (= (m/count-cells simple-maze) 9))
+(deftest test-masked-count-cells
   (is (= (m/count-cells masked-maze) 8))
   (is (= (m/count-cells (update masked-maze :mask conj [10 10])) 8)))
 
-(deftest test-rand-cell
-  (let [[y x] (m/rand-cell grid44)]
-    (is (and (>= y 0) (< y 4)))
-    (is (and (>= x 0) (< x 4)))
-    (is (false? (contains? (set (repeatedly 100 (partial m/rand-cell masked-maze)))
-                           [1 1])))))
-
-(deftest test-cell-neighbors
-  (is (= (m/cell-neighbors grid44 [1 1]) #{[0 1] [1 2] [2 1] [1 0]})))
+(deftest test-masked-rand-cell
+  (is (false? (contains? (set (repeatedly 100 (partial m/rand-cell masked-maze)))
+                         [1 1]))))
 
 ;; common grid methods
 
@@ -358,3 +368,6 @@
   (are [cell neighbors] (= (m/cell-neighbors (m/make-triangle-grid 5 5) cell) neighbors)
     [0 2] #{[0 1] [0 3] [1 2]}
     [1 2] #{[1 1] [1 3] [0 2]}))
+
+(comment
+  (run-tests 'mazes.core-test))

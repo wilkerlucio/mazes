@@ -172,7 +172,9 @@
 
 (defrecord MaskedGrid [grid mask]
   IGrid
-  (cells-seq [_] (cells-seq grid))
+  (cells-seq [_]
+    (->> (cells-seq grid)
+         (remove (partial contains? mask))))
 
   (valid-pos? [_ cell]
     (and (valid-pos? grid cell)
@@ -243,6 +245,8 @@
        (set)))
 
 (defn dead-ends [{:keys [links]}] (filter (fn [[_ v]] (= (count v) 1)) links))
+
+(defn braid [grid])
 
 ;; maze generators
 

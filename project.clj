@@ -21,7 +21,7 @@
 
   :cljsbuild {
     :builds [{:id "dev"
-              :source-paths ["src/cljs" "src/dev"]
+              :source-paths ["src/cljs" "src/dev" "test"]
               :compiler {:output-to "resources/public/js/compiled/mazes.js"
                          :output-dir "resources/public/js/compiled/out"
                          :optimizations :none

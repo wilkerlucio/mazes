@@ -360,16 +360,17 @@
 
 ;; solvers
 
-(defn dijkstra-enumerate [grid start-cell]
+(defn dijkstra-enumerate [{:keys [cell-costs] :as grid} start-cell]
   (loop [marks {}
          queue [[start-cell 0]]]
     (if (seq queue)
-      (let [[cell distance] (first queue)
+      (let [[[cell distance] & t] queue
             neighbors (->> (accessible-neighbors grid cell)
                            (remove (partial contains? marks))
-                           (map #(vector % (inc distance))))]
+                           (remove (partial contains? (set (map first queue))))
+                           (map #(vector % (+ distance (get cell-costs % 1)))))]
         (recur (assoc marks cell distance)
-               (concat (rest queue) neighbors)))
+               (sort-by second (concat t neighbors))))
       marks)))
 
 (defn trace-route-back [grid marks start-cell]

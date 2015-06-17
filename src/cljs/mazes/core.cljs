@@ -364,13 +364,14 @@
   (loop [marks {}
          queue [[start-cell 0]]]
     (if (seq queue)
-      (let [[[cell distance] & t] queue
-            neighbors (->> (accessible-neighbors grid cell)
-                           (remove (partial contains? marks))
-                           (remove (partial contains? (set (map first queue))))
-                           (map #(vector % (+ distance (get cell-costs % 1)))))]
-        (recur (assoc marks cell distance)
-               (sort-by second (concat t neighbors))))
+      (let [[[cell distance] & t] queue]
+        (if (contains? marks cell)
+          (recur marks t)
+          (let [neighbors (->> (accessible-neighbors grid cell)
+                               (remove (partial contains? marks))
+                               (map #(vector % (+ distance (get cell-costs % 1)))))]
+            (recur (assoc marks cell distance)
+                   (sort-by second (concat t neighbors))))))
       marks)))
 
 (defn trace-route-back [grid marks start-cell]

@@ -21,6 +21,7 @@
    :generator      :recursive-backtracker
    :marker-builder :random-point
    :colorizer      :blue-to-red
+   :braid          0.7
    :mask           #{}
    :layers         {:distance-mash {:show true
                                     :color-fn :blue-to-red}
@@ -271,6 +272,9 @@
       (let [n (or (js/parseInt size) 0)]
         (om/update! data [:grid-size axis] (fit-in-range n 1 100))))
 
+    (go-sub pub :update-grid-braid [_ braid]
+      (om/update! data :braid braid))
+
     (go-sub pub :update-layer [_ layer prop value]
       (om/transact! data #(assoc-in % [:layers layer prop] value)))
 
@@ -301,7 +305,9 @@
               grid (bench "generating maze" (-> (grid-builder cur-data)
                                                 #_ (m/make-grid rows columns)
                                                 (update :mask into (:mask cur-data))
-                                                generator))
+                                                generator
+                                                (m/braid (:braid cur-data))))
+              _ (print "braid with" (:braid cur-data))
               marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
               ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
               ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
@@ -447,6 +453,13 @@
         (dom/div (clj->js attrs)
           view)))))
 
+(defn range-input [data key {:keys [min max step]
+                             :or {step 1}}]
+  (dom/div nil
+    (dom/div #js {:style #js {:text-align "center"}} (get data key))
+    (dom/input #js {:type     "range" :value (get data key) :min min :max max :step step
+                    :onChange #(om/update! data key (js/parseFloat (target-value %)))})))
+
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
     om/IDisplayName (display-name [_] "Maze Playground")
@@ -474,6 +487,10 @@
             (dom/div #js {:className "playground-menu-content"}
               (comp-select {:value    (name generator) :options (impl->options opt-algorithms data)
                             :onChange #(put! bus [:update-generator (target-value %)])}))
+
+            (dom/div #js {:className "playground-menu-header"} "Braid")
+            (dom/div #js {:className "playground-menu-content"}
+              (range-input data :braid {:min 0 :max 1 :step 0.1}))
 
             (dom/div #js {:className "playground-menu-header"} "Grid Size")
             (dom/div #js {:className "playground-menu-content"}

@@ -23,22 +23,26 @@
 (defn north [[y x]] [(dec y) x])
 (defn south [[y x]] [(inc y) x])
 
+(defn rect-cells-seq [{:keys [rows columns]}]
+  (for [y (range rows) x (range columns)] [y x]))
+
+(defn rect-valid-pos? [{:keys [rows columns]} [y x]]
+  (and (>= x 0) (< x columns)
+       (>= y 0) (< y rows)))
+
+(defn rect-count-cells [{:keys [rows columns]}] (* rows columns))
+
+(defn rect-rand-cell [{:keys [rows columns]}] [(rand-int rows) (rand-int columns)])
+
 (defrecord RectangularGrid [rows columns links]
   IGrid
-  (cells-seq [this]
-    (for [y (range rows) x (range columns)
-          :let [cell [y x]]
-          :when (valid-pos? this cell)]
-      cell))
+  (cells-seq [this] (rect-cells-seq this))
 
-  (valid-pos? [_ [y x]]
-    (and (>= x 0) (< x columns)
-         (>= y 0) (< y rows)))
+  (valid-pos? [this cell] (rect-valid-pos? this cell))
 
-  (count-cells [_] (* rows columns))
+  (count-cells [this] (rect-count-cells this))
 
-  (rand-cell [_]
-    [(rand-int rows) (rand-int columns)])
+  (rand-cell [this] (rect-rand-cell this))
 
   (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)}))
 
@@ -129,15 +133,13 @@
 
 (defrecord HexGrid [rows columns links]
   IGrid
-  (cells-seq [_] (for [y (range rows) x (range columns)] [y x]))
+  (cells-seq [this] (rect-cells-seq this))
 
-  (valid-pos? [_ [y x]]
-    (and (>= x 0) (< x columns)
-         (>= y 0) (< y rows)))
+  (valid-pos? [this cell] (rect-valid-pos? this cell))
 
-  (count-cells [_] (* rows columns))
+  (count-cells [this] (rect-count-cells this))
 
-  (rand-cell [_] [(rand-int rows) (rand-int columns)])
+  (rand-cell [this] (rect-rand-cell this))
 
   (cell-neighbors [_ cell] #{(northwest cell) (north cell) (northeast cell)
                              (southwest cell) (south cell) (southeast cell)}))
@@ -152,15 +154,13 @@
 
 (defrecord TriangleGrid [rows columns links]
   IGrid
-  (cells-seq [_] (for [y (range rows) x (range columns)] [y x]))
+  (cells-seq [this] (rect-cells-seq this))
 
-  (valid-pos? [_ [y x]]
-    (and (>= x 0) (< x columns)
-         (>= y 0) (< y rows)))
+  (valid-pos? [this cell] (rect-valid-pos? this cell))
 
-  (count-cells [_] (* rows columns))
+  (count-cells [this] (rect-count-cells this))
 
-  (rand-cell [_] [(rand-int rows) (rand-int columns)])
+  (rand-cell [this] (rect-rand-cell this))
 
   (cell-neighbors [_ cell]
     #{(west cell) (east cell) (if (cell-upright? cell) (south cell) (north cell))}))

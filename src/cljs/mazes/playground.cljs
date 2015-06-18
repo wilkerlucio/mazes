@@ -21,7 +21,7 @@
 
 (def initial-state
   {:grid-type      :polar
-   :grid-size      {:columns 10 :rows 10}
+   :grid-size      {:columns 20 :rows 20}
    :generator      :recursive-backtracker
    :marker-builder :random-point
    :colorizer      :blue-to-red
@@ -613,6 +613,7 @@
 
           (om/build maze-render {:grid (:grid data)
                                  :color-fn color-fn
+                                 :render-path (:render-path data)
                                  :layers (:layers data)}))))))
 
 ;; initializer

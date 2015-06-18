@@ -284,8 +284,8 @@
 ;; services
 
 (defn maze-services [data owner]
-  (let [pub (om/get-state owner :pub)
-        bus (om/get-state owner :bus)]
+  (let [pub (om/get-shared owner :pub)
+        bus (om/get-shared owner :bus)]
 
     (go-sub pub :update-grid-type [_ grid-type]
       (om/update! data :grid-type (keyword grid-type)))
@@ -524,6 +524,29 @@
     (dom/input #js {:type     "range" :value (get data key) :min min :max max :step step
                     :onChange #(om/update! data key (js/parseFloat (target-value %)))})))
 
+(defn maze-render [{:keys [grid color-fn layers render-path]} owner]
+  (reify
+    om/IRender
+    (render [_]
+      (let [bus (om/get-shared owner :bus)]
+        (dom/div #js {:className "playground-content flex"}
+          (if grid
+            (let [size {:width 600 :height 600}
+                  grid (-> (unserialize-record grid)
+                           (merge size))
+                  grid-svg
+                       (dom/svg (clj->js (assoc size
+                                           :className "playground-svg"
+                                           :viewBox "-5 -5 610 610"))
+                                (let [color-fn (if (get-in layers [:distance-mash :show])
+                                                 (get-in opt-color-functions [color-fn :value])
+                                                 (fn [_] "transparent"))]
+                                  (comp-grid-backgrounds (assoc grid :color-fn color-fn) bus))
+                                (if (get-in layers [:dead-ends :show]) (comp-grid-dead-ends grid))
+                                (if (get-in layers [:path :show]) (comp-grid-path grid (or render-path [])))
+                                (if (get-in layers [:grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 1})))]
+              grid-svg)))))))
+
 (defn maze-playground [{:keys [generator grid-size] :as data} owner]
   (reify
     om/IDisplayName (display-name [_] "Maze Playground")
@@ -537,7 +560,7 @@
 
     om/IRender
     (render [_]
-      (let [bus (om/get-state owner :bus)
+      (let [bus (om/get-shared owner :bus)
             flux {:data data :bus bus}
             color-fn (get-in data [:layers :distance-mash :color-fn])]
         (dom/div #js {:className "flex-row flex"}
@@ -588,27 +611,15 @@
               (bs-b/button {:on-click #(put! bus [:generate-maze])
                             :bs-style "success" :bs-size "large"} "Generate maze")))
 
-          (dom/div #js {:className "playground-content flex"}
-            (if-let [grid (:grid data)]
-              (let [size {:width 600 :height 600}
-                    grid (-> (unserialize-record grid)
-                             (merge size))
-                    grid-svg
-                    (dom/svg (clj->js (assoc size
-                                        :className "playground-svg"
-                                        :viewBox "-5 -5 610 610"))
-                             (let [color-fn (if (get-in data [:layers :distance-mash :show])
-                                              (get-in opt-color-functions [color-fn :value])
-                                              (fn [_] "transparent"))]
-                               (comp-grid-backgrounds (assoc grid :color-fn color-fn) bus))
-                             (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
-                             (if (get-in data [:layers :path :show]) (comp-grid-path grid (get data :render-path [])))
-                             (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 1})))]
-                grid-svg))))))))
+          (om/build maze-render {:grid (:grid data)
+                                 :color-fn color-fn
+                                 :layers (:layers data)}))))))
 
 ;; initializer
 
 (defn build-at [node app-state]
   (prevent-global-drop!)
-  (let [root (om/root maze-playground app-state {:target node})]
+  (let [bus (chan 1024)
+        pub (async/pub bus first)
+        root (om/root maze-playground app-state {:target node :shared {:bus bus :pub pub}})]
     (om/get-state root)))

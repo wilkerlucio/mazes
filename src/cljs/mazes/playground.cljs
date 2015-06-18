@@ -2,7 +2,7 @@
   (:require-macros [wilkerdev.util.macros :refer [bench go-sub go-sub*]]
                    [cljs.core.async.macros :refer [go]])
   (:require [mazes.core :refer [cells-seq valid-pos? linked-to? north east south west
-                                make-grid rand-cell dijkstra-enumerate farthest-point]
+                                make-rect-grid rand-cell dijkstra-enumerate farthest-point]
              :as m]
             [om.core :as om]
             [om.dom :as dom]
@@ -32,7 +32,7 @@
 (def opt-grid-types
   (sorted-map
     :rectangular {:label "Rectangular Grid"
-                  :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-grid columns rows))}
+                  :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-rect-grid columns rows))}
     :polar {:label "Polar Grid"
             :value (fn [{{:keys [rows]} :grid-size}] (m/make-polar-grid rows))}
     :hex {:label "Hexagon Grid"
@@ -111,7 +111,7 @@
      :grid (serialize-record grid)
      :mask mask}))
 
-(defmethod unserialize-record* ::rectangular [attrs] (make-grid attrs))
+(defmethod unserialize-record* ::rectangular [attrs] (make-rect-grid attrs))
 (defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid nil) attrs))
 (defmethod unserialize-record* ::hexagon [attrs] (merge (m/make-hex-grid nil nil) attrs))
 (defmethod unserialize-record* ::triangle [attrs] (merge (m/make-triangle-grid nil nil) attrs))

@@ -42,8 +42,8 @@
 
   (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)}))
 
-(defn make-grid
-  ([attrs] (merge (make-grid 0 0) attrs))
+(defn make-rect-grid
+  ([attrs] (merge (make-rect-grid 0 0) attrs))
   ([rows columns]
    (RectangularGrid. rows columns {})))
 
@@ -254,8 +254,7 @@
 (defn braid [grid p]
   (reduce (fn [grid cell]
             (let [dead-end? (partial dead-end? grid)]
-              (if (and (dead-end? cell)
-                       (<= (rand) p))
+              (if (and (dead-end? cell) (<= (rand) p))
                 (let [neighbors (-> (unlinked-neighbors grid cell))
                       neighbor  (or (->> neighbors (filter dead-end?) (first))
                                     (-> neighbors (vec) (rand-nth)))]

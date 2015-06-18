@@ -14,7 +14,7 @@
 
 ;; testing rectangular grid
 
-(def grid44 (m/make-grid 4 4))
+(def grid44 (m/make-rect-grid 4 4))
 
 ; +---+---+---+
 ; |           |
@@ -24,15 +24,15 @@
 ; |   |       |
 ; +---+---+---+
 (def simple-maze
-  (-> (m/make-grid 3 3)
+  (-> (m/make-rect-grid 3 3)
       (assoc :links {[0 1] #{[0 0] [0 2]} [1 2] #{[1 1] [0 2]} [0 0] #{[0 1] [1 0]} [2 2] #{[2 1]}
                      [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
                      [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}})))
 
 (deftest test-make-grid
-  (is (= (into {} (m/make-grid {:rows 2 :columns 5 :links {[0 0] #{}}}))
+  (is (= (into {} (m/make-rect-grid {:rows 2 :columns 5 :links {[0 0] #{}}}))
          {:rows 2 :columns 5 :links {[0 0] #{}}}))
-  (is (= (into {} (m/make-grid 4 3))
+  (is (= (into {} (m/make-rect-grid 4 3))
          {:rows 4 :columns 3 :links {}})))
 
 (deftest test-east (is (= (m/east [0 0]) [0 1])))
@@ -51,7 +51,7 @@
     [4 3]  false))
 
 (deftest test-cells-seq
-  (is (= (m/cells-seq (m/make-grid 2 2))
+  (is (= (m/cells-seq (m/make-rect-grid 2 2))
          [[0 0] [0 1] [1 0] [1 1]])))
 
 (deftest test-count-cells
@@ -69,7 +69,7 @@
 ;; testing masked grid
 
 (def masked-maze
-  (-> (m/make-grid 3 3)
+  (-> (m/make-rect-grid 3 3)
       (m/masked-grid #{[1 1]})))
 
 (deftest test-masked-valid-pos?
@@ -102,7 +102,7 @@
   (is (false? (m/visited-cell? {:links {[0 0] #{}}} [0 1]))))
 
 (deftest test-link-cells
-  (is (= (:links (m/link-cells (m/make-grid 4 3) [0 0] [0 1]))
+  (is (= (:links (m/link-cells (m/make-rect-grid 4 3) [0 0] [0 1]))
          {[0 0] #{[0 1]}
           [0 1] #{[0 0]}}))
   (is (thrown-with-msg? js/Error #"cell-a" (m/link-cells grid44 nil [1 3])))
@@ -124,7 +124,7 @@
     (is (false? (m/linked-to? linked-grid [1 2] nil)))))
 
 (deftest test-rows-seq
-  (is (= (m/rows-seq (m/make-grid 2 2))
+  (is (= (m/rows-seq (m/make-rect-grid 2 2))
          [[[0 0] [0 1]] [[1 0] [1 1]]]))
   (is (= (m/rows-seq masked-maze)
          [[[0 0] [0 1] [0 2]]
@@ -132,7 +132,7 @@
           [[2 0] [2 1] [2 2]]])))
 
 (deftest test-unvisited-cells
-  (is (= (m/unvisited-cells (assoc (m/make-grid 2 2) :links {[1 1] #{} [0 1] #{}}))
+  (is (= (m/unvisited-cells (assoc (m/make-rect-grid 2 2) :links {[1 1] #{} [0 1] #{}}))
          [[0 0] [1 0]])))
 
 (deftest test-valid-neighbors

@@ -26,7 +26,7 @@
 ;; testing serialization
 
 (deftest test-serialization
-  (let [grid44 (m/make-grid 4 4)]
+  (let [grid44 (m/make-rect-grid 4 4)]
     (is (= (p/serialize-record grid44)
            {:rows 4 :columns 4 :links {} :mask #{} :grid-type :mazes.playground/rectangular}))
     (let [grid (p/unserialize-record {:rows 4 :columns 4 :links {} :mask #{} :grid-type :mazes.playground/rectangular})]

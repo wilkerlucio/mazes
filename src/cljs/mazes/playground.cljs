@@ -2,7 +2,7 @@
   (:require-macros [wilkerdev.util.macros :refer [bench go-sub go-sub*]]
                    [cljs.core.async.macros :refer [go]])
   (:require [mazes.core :refer [cells-seq valid-pos? linked-to? north east south west
-                                make-rect-grid rand-cell dijkstra-enumerate farthest-point]
+                                rand-cell dijkstra-enumerate farthest-point]
              :as m]
             [om.core :as om]
             [om.dom :as dom]
@@ -12,6 +12,10 @@
             [wilkerdev.util :refer [distinct-consecutive]]
             [wilkerdev.util.dom :as domm])
   (:import [goog.fs FileReader]))
+
+;; helpers
+
+(defn merge-js [& args] (clj->js (apply merge args)))
 
 ;; state and data
 
@@ -33,6 +37,8 @@
   (sorted-map
     :rectangular {:label "Rectangular Grid"
                   :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-rect-grid columns rows))}
+    :rectangular-inset {:label "Rectangular Waver Grid"
+                  :value (fn [{{:keys [columns rows]} :grid-size}] (m/make-inset-rect-grid columns rows))}
     :polar {:label "Polar Grid"
             :value (fn [{{:keys [rows]} :grid-size}] (m/make-polar-grid rows))}
     :hex {:label "Hexagon Grid"
@@ -96,6 +102,9 @@
   m/RectangularGrid
   (serialize-record [grid] (simple-serialize-grid grid ::rectangular))
 
+  m/InsetRectangularGrid
+  (serialize-record [grid] (simple-serialize-grid grid ::rectangular-inset))
+
   m/PolarGrid
   (serialize-record [grid] (simple-serialize-grid grid ::polar))
 
@@ -111,7 +120,8 @@
      :grid (serialize-record grid)
      :mask mask}))
 
-(defmethod unserialize-record* ::rectangular [attrs] (make-rect-grid attrs))
+(defmethod unserialize-record* ::rectangular [attrs] (m/make-rect-grid attrs))
+(defmethod unserialize-record* ::rectangular-inset [attrs] (m/make-inset-rect-grid attrs))
 (defmethod unserialize-record* ::polar [attrs] (merge (m/make-polar-grid nil) attrs))
 (defmethod unserialize-record* ::hexagon [attrs] (merge (m/make-hex-grid nil nil) attrs))
 (defmethod unserialize-record* ::triangle [attrs] (merge (m/make-triangle-grid nil nil) attrs))
@@ -124,6 +134,10 @@
 (defn cell-bounds [[y x] cell-size]
   [(* x cell-size) (* y cell-size)
    (* (inc x) cell-size) (* (inc y) cell-size)])
+
+(defn bounds-inset [[x1 y1 x2 y2] inset]
+  [(+ x1 inset) (+ y1 inset)
+   (- x2 inset) (- y2 inset)])
 
 (defn impl->options [m data]
   (map (fn [[k v]] {:label     (:label v) :value (name k)
@@ -262,6 +276,11 @@
 (defn svg-line [x1 y1 x2 y2 style]
   (dom/line #js {:x1 x1 :y1 y1 :x2 x2 :y2 y2 :style (clj->js style)}))
 
+(defn svg-rect [[x1 y1 x2 y2] style]
+  (let [width (- x2 x1)
+        height (- y2 y1)]
+    (dom/rect #js {:x x1 :y y1 :width width :height height :style (clj->js style)})))
+
 ;; services
 
 (defn maze-services [data owner]
@@ -335,8 +354,8 @@
   (draw-cell [grid cell attributes]
     (let [cell-size (rect-cell-size grid)
           [x y] (cell-bounds cell cell-size)]
-      (dom/rect (clj->js (merge {:width cell-size :height cell-size :x x :y y}
-                                attributes)))))
+      (dom/rect (merge-js {:width cell-size :height cell-size :x x :y y}
+                          attributes))))
 
   (draw-grid-edges [grid style]
     (let [cell-size (rect-cell-size grid)
@@ -348,6 +367,45 @@
                                          (if-not (linked-to? grid cell (south cell)) [x1 y2 x2 y2])]
 
                                         (filter identity))]
+                         (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]
+      (apply dom/g nil (map link->line (cells-seq grid))))))
+
+(def INSET_AMOUNT 2)
+
+(extend-type m/InsetRectangularGrid
+  IRenderGrid
+  (draw-cell [grid cell attributes]
+    (let [cell-size (rect-cell-size grid)
+          [x1 y1 x4 y4 :as bounds] (cell-bounds cell cell-size)
+          [x2 y2 x3 y3] (bounds-inset bounds INSET_AMOUNT)
+          rects     (->> [(if (linked-to? grid cell (north cell)) [x2 (dec y1) x3 (inc y2)])
+                          (if (linked-to? grid cell (east cell)) [(dec x3) y2 (inc x4) y3])
+                          (if (linked-to? grid cell (south cell)) [x2 (dec y3) x3 (inc y4)])
+                          (if (linked-to? grid cell (west cell)) [(dec x1) y2 (inc x2) y3])
+                          [x2 y2 x3 y3]]
+
+                         (filter identity))]
+      (apply dom/g (clj->js attributes) (map #(svg-rect % {}) rects))))
+
+  (draw-grid-edges [grid style]
+    (let [cell-size (rect-cell-size grid)
+          style (merge style {:stroke-linecap "square"})
+          link->line (fn [cell]
+                       (let [[x1 y1 x4 y4 :as bounds] (cell-bounds cell cell-size)
+                             [x2 y2 x3 y3] (bounds-inset bounds INSET_AMOUNT)
+                             lines (->> [(if (linked-to? grid cell (north cell))
+                                           [[x2 y1 x2 y2] [x3 y1 x3 y2]]
+                                           [[x2 y2 x3 y2]])
+                                         (if (linked-to? grid cell (south cell))
+                                           [[x2 y3 x2 y4] [x3 y3 x3 y4]]
+                                           [[x2 y3 x3 y3]])
+                                         (if (linked-to? grid cell (west cell))
+                                           [[x1 y2 x2 y2] [x1 y3 x2 y3]]
+                                           [[x2 y2 x2 y3]])
+                                         (if (linked-to? grid cell (east cell))
+                                           [[x3 y2 x4 y2] [x3 y3 x4 y3]]
+                                           [[x3 y2 x3 y3]])]
+                                        flatten1)]
                          (apply dom/g #js {:key (pr-str cell)} (map #(apply svg-line (conj % style)) lines))))]
       (apply dom/g nil (map link->line (cells-seq grid))))))
 
@@ -545,7 +603,7 @@
                                (comp-grid-backgrounds (assoc grid :color-fn color-fn) bus))
                              (if (get-in data [:layers :dead-ends :show]) (comp-grid-dead-ends grid))
                              (if (get-in data [:layers :path :show]) (comp-grid-path grid (get data :render-path [])))
-                             (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 2})))]
+                             (if (get-in data [:layers :grid-lines :show]) (draw-grid-edges grid {:stroke "#000" :fill "none" :strokeWidth 1})))]
                 grid-svg))))))))
 
 ;; initializer

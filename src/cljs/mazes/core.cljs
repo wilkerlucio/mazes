@@ -51,6 +51,25 @@
   ([rows columns]
    (RectangularGrid. rows columns {})))
 
+;; inset grid
+
+(defrecord InsetRectangularGrid [rows columns links]
+  IGrid
+  (cells-seq [this] (rect-cells-seq this))
+
+  (valid-pos? [this cell] (rect-valid-pos? this cell))
+
+  (count-cells [this] (rect-count-cells this))
+
+  (rand-cell [this] (rect-rand-cell this))
+
+  (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)}))
+
+(defn make-inset-rect-grid
+  ([attrs] (merge (make-inset-rect-grid 0 0) attrs))
+  ([rows columns]
+   (InsetRectangularGrid. rows columns {})))
+
 ;; polar grid
 
 (defn make-polar-row [row count] (map #(vector row %) (range count)))

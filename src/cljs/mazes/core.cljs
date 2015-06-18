@@ -144,13 +144,11 @@
   (let [under-cell (conj cell true)]
     (if (horizontal-passage? grid cell)
       (-> grid
-          (update-in [:links (north cell)] #(conj (or % #{}) under-cell))
-          (update-in [:links (south cell)] #(conj (or % #{}) under-cell))
-          (update-in [:links under-cell] #(conj (or % #{}) (north cell) (south cell))))
+          (link-cells* (north cell) under-cell)
+          (link-cells* (south cell) under-cell))
       (-> grid
-          (update-in [:links (east cell)] #(conj (or % #{}) under-cell))
-          (update-in [:links (west cell)] #(conj (or % #{}) under-cell))
-          (update-in [:links under-cell] #(conj (or % #{}) (east cell) (west cell)))))))
+          (link-cells* (east cell) under-cell)
+          (link-cells* (west cell) under-cell)))))
 
 (defn under-cells [{:keys [links]}] (filter #(get % 2) (keys links)))
 

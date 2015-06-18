@@ -25,9 +25,7 @@
 ; +---+---+---+
 (def simple-maze
   (-> (m/make-rect-grid 3 3)
-      (assoc :links {[0 1] #{[0 0] [0 2]} [1 2] #{[1 1] [0 2]} [0 0] #{[0 1] [1 0]} [2 2] #{[2 1]}
-                     [0 2] #{[0 1] [1 2]} [1 1] #{[1 2] [2 1]} [2 1] #{[2 2] [1 1]}
-                     [1 0] #{[0 0] [2 0]} [2 0] #{[1 0]}})))
+      (m/link-path [[2 0] [1 0] [0 0] [0 1] [0 2] [1 2] [1 1] [2 1] [2 2]])))
 
 (deftest test-make-grid
   (is (= (into {} (m/make-rect-grid {:rows 2 :columns 5 :links {[0 0] #{}}}))
@@ -65,6 +63,97 @@
 
 (deftest test-cell-neighbors
   (is (= (m/cell-neighbors grid44 [1 1]) #{[0 1] [1 2] [2 1] [1 0]})))
+
+;; testing inset grid
+
+(def inset-grid (m/make-inset-rect-grid 3 3))
+
+; +---+---+---+
+; |   |   |   |
+; +---+---+---+
+; |           |
+; +---+---+---+
+; |   |   |   |
+; +---+---+---+
+(def inset-grid-horizontal
+  (-> (m/make-inset-rect-grid 3 3)
+      (m/link-path [[1 0] [1 1] [1 2]])))
+
+; +---+---+---+
+; |   |   |   |
+; +---+   +---+
+; |   |   |   |
+; +---+   +---+
+; |   |   |   |
+; +---+---+---+
+(def inset-grid-vertical
+  (-> (m/make-inset-rect-grid 3 3)
+      (m/link-path [[0 1] [1 1] [2 1]])))
+
+(deftest test-horizontal-passage?
+  (are [pos v] (= (m/horizontal-passage? simple-maze pos) v)
+    [0 0] false [0 1] true [0 2] false
+    [1 0] false [1 1] false [1 2] false
+    [2 0] false [2 1] false [2 2] false))
+
+(deftest test-vertical-passage?
+  (are [pos v] (= (m/vertical-passage? simple-maze pos) v)
+    [0 0] false [0 1] false [0 2] false
+    [1 0] true [1 1] false [1 2] false
+    [2 0] false [2 1] false [2 2] false))
+
+(deftest test-inset-neighbors
+  (are [grid cell neighbors] (= (m/cell-neighbors grid cell)
+                           neighbors)
+    inset-grid-horizontal [0 0] #{[1 0] [0 -1] [-1 0] [0 1]}
+    inset-grid-horizontal [0 1] #{[1 1] [0 0] [-1 1] [0 2] [2 1]}
+    inset-grid-horizontal [2 1] #{[2 0] [1 1] [2 2] [3 1] [0 1]}
+
+    inset-grid-vertical [1 0] #{[0 0] [1 1] [2 0] [1 -1] [1 2]}
+    inset-grid-vertical [1 2] #{[0 2] [1 1] [2 2] [1 3] [1 0]}))
+
+(deftest test-inset-count-cells
+  (is (= (m/count-cells inset-grid) 9))
+  (is (= (m/count-cells (assoc-in inset-grid [:links [1 1 true]] #{[1 0] [1 2]})) 10)))
+
+(deftest test-inset-grid-link
+  (are [grid ca cb res] (= (into {} (m/link-cells grid ca cb))
+                           res)
+
+    inset-grid [0 0] [0 1] {:rows       3 :columns 3
+                            :links      {[0 0] #{[0 1]} [0 1] #{[0 0]}}}
+
+    inset-grid-horizontal [0 1] [2 1] {:rows       3 :columns 3
+                                       :links      {[0 1] #{[1 1 true]}
+                                                    [1 0] #{[1 1]}
+                                                    [1 1] #{[1 0] [1 2]}
+                                                    [1 2] #{[1 1]}
+                                                    [2 1] #{[1 1 true]}
+                                                    [1 1 true] #{[0 1] [2 1]}}}
+
+    inset-grid-horizontal [2 1] [0 1] {:rows       3 :columns 3
+                                       :links      {[1 0] #{[1 1]}
+                                                    [1 1] #{[1 0] [1 2]}
+                                                    [1 2] #{[1 1]}
+                                                    [0 1] #{[1 1]}
+                                                    [2 1] #{[1 1]}}
+                                       :undercells {[1 1] #{[0 1] [2 1]}}}
+
+    inset-grid-vertical [1 0] [1 2] {:rows       3 :columns 3
+                                     :links      {[0 1] #{[1 1]}
+                                                  [1 1] #{[0 1] [2 1]}
+                                                  [2 1] #{[1 1]}
+                                                  [1 2] #{[1 1]}
+                                                  [1 0] #{[1 1]}}
+                                     :undercells {[1 1] #{[1 0] [1 2]}}}
+
+    inset-grid-vertical [1 2] [1 0] {:rows       3 :columns 3
+                                     :links      {[0 1] #{[1 1]}
+                                                  [1 1] #{[0 1] [2 1]}
+                                                  [2 1] #{[1 1]}
+                                                  [1 2] #{[1 1]}
+                                                  [1 0] #{[1 1]}}
+                                     :undercells {[1 1] #{[1 0] [1 2]}}}))
 
 ;; testing masked grid
 

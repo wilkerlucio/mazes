@@ -11,10 +11,85 @@
   (rand-cell [grid])
   (cell-neighbors [grid cell]))
 
+(defprotocol IGridLinker
+  (grid-link-cells [grid cell-a cell-b]))
+
 ;; util
 
 (defn index-of [value coll]
   (first (keep-indexed #(if (= %2 value) %1) coll)))
+
+;; common grid functions
+
+(defn visit-cell [grid cell]
+  (update-in grid [:links cell] #(or % #{})))
+
+(defn visited-cell? [grid cell]
+  (contains? (:links grid) cell))
+
+(defn link-cells* [grid cell-a cell-b]
+  (assert (not (nil? cell-a)))
+  (assert (not (nil? cell-b)))
+  (-> grid
+      (update-in [:links cell-a] #(conj (or % #{}) cell-b))
+      (update-in [:links cell-b] #(conj (or % #{}) cell-a))))
+
+(defn link-cells [grid cell-a cell-b]
+  (if (satisfies? IGridLinker grid)
+    (grid-link-cells grid cell-a cell-b)
+    (link-cells* grid cell-a cell-b)))
+
+(defn link-path [grid path]
+  (->> (partition 2 1 path)
+       (reduce (fn [grid [ca cb]] (link-cells grid ca cb)) grid)))
+
+(defn linked-to? [grid cell-a cell-b]
+  (contains? (get-in grid [:links cell-a] #{}) cell-b))
+
+(defn unvisited-cells [{:keys [links] :as grid}]
+  (->> (cells-seq grid)
+       (remove (partial contains? links))))
+
+(defn rows-seq [grid]
+  (->> (cells-seq grid) (group-by first) (vals)))
+
+(defn valid-neighbors [grid cell]
+  (->> (cell-neighbors grid cell)
+       (filter (partial valid-pos? grid))
+       (set)))
+
+(defn accessible-neighbors [grid cell]
+  (->> (cell-neighbors grid cell)
+       (filter (partial linked-to? grid cell))
+       (set)))
+
+(defn unvisited-neighbors [grid cell]
+  (->> (valid-neighbors grid cell)
+       (remove (partial visited-cell? grid))
+       (set)))
+
+(defn unlinked-neighbors [grid cell]
+  (->> (valid-neighbors grid cell)
+       (remove (partial linked-to? grid cell))
+       (set)))
+
+(defn dead-end? [{:keys [links]} cell] (= 1 (count (links cell))))
+
+(defn dead-ends [{:keys [links] :as grid}]
+  (->> (keys links)
+       (filter (partial dead-end? grid))
+       (set)))
+
+(defn braid [grid p]
+  (reduce (fn [grid cell]
+            (let [dead-end? (partial dead-end? grid)]
+              (if (and (dead-end? cell) (<= (rand) p))
+                (let [neighbors (-> (unlinked-neighbors grid cell))
+                      neighbor  (or (->> neighbors (filter dead-end?) (first))
+                                    (-> neighbors (vec) (rand-nth)))]
+                  (link-cells grid cell neighbor))
+                grid)))
+          grid (dead-ends grid)))
 
 ;; rectangular grid
 
@@ -53,17 +128,72 @@
 
 ;; inset grid
 
+(defn horizontal-passage? [grid cell]
+  (and (linked-to? grid cell (west cell))
+       (linked-to? grid cell (east cell))
+       (not (linked-to? grid cell (north cell)))
+       (not (linked-to? grid cell (south cell)))))
+
+(defn vertical-passage? [grid cell]
+  (and (linked-to? grid cell (north cell))
+       (linked-to? grid cell (south cell))
+       (not (linked-to? grid cell (east cell)))
+       (not (linked-to? grid cell (west cell)))))
+
+(defn tunnel-under [grid cell]
+  (let [under-cell (conj cell true)]
+    (if (horizontal-passage? grid cell)
+      (-> grid
+          (update-in [:links (north cell)] #(conj (or % #{}) under-cell))
+          (update-in [:links (south cell)] #(conj (or % #{}) under-cell))
+          (update-in [:links under-cell] #(conj (or % #{}) (north cell) (south cell))))
+      (-> grid
+          (update-in [:links (east cell)] #(conj (or % #{}) under-cell))
+          (update-in [:links (west cell)] #(conj (or % #{}) under-cell))
+          (update-in [:links under-cell] #(conj (or % #{}) (east cell) (west cell)))))))
+
+(defn under-cells [{:keys [links]}] (filter #(get % 2) (keys links)))
+
 (defrecord InsetRectangularGrid [rows columns links]
   IGrid
   (cells-seq [this] (rect-cells-seq this))
 
   (valid-pos? [this cell] (rect-valid-pos? this cell))
 
-  (count-cells [this] (rect-count-cells this))
+  (count-cells [this] (+ (rect-count-cells this)
+                         (count (under-cells this))))
 
   (rand-cell [this] (rect-rand-cell this))
 
-  (cell-neighbors [_ cell] #{(north cell) (east cell) (south cell) (west cell)}))
+  (cell-neighbors [this cell]
+    (into #{(north cell) (east cell) (south cell) (west cell)}
+          (->> [(if (horizontal-passage? this (north cell)) (-> cell north north))
+                (if (horizontal-passage? this (south cell)) (-> cell south south))
+                (if (vertical-passage? this (east cell)) (-> cell east east))
+                (if (vertical-passage? this (west cell)) (-> cell west west))]
+               (filter identity)
+               (concat (get-in this [:links cell])))))
+
+  IGridLinker
+  (grid-link-cells [this cell-a cell-b]
+    (if-let [neighbor (cond
+                        (and (valid-pos? this (north cell-a))
+                             (= (north cell-a) (south cell-b)))
+                        (north cell-a)
+
+                        (and (valid-pos? this (south cell-a))
+                             (= (south cell-a) (north cell-b)))
+                        (south cell-a)
+
+                        (and (valid-pos? this (east cell-a))
+                             (= (east cell-a) (west cell-b)))
+                        (east cell-a)
+
+                        (and (valid-pos? this (west cell-a))
+                             (= (west cell-a) (east cell-b)))
+                        (west cell-a))]
+      (tunnel-under this neighbor)
+      (link-cells* this cell-a cell-b))))
 
 (defn make-inset-rect-grid
   ([attrs] (merge (make-inset-rect-grid 0 0) attrs))
@@ -214,73 +344,6 @@
 (defn masked-grid [grid mask]
   (MaskedGrid. grid mask))
 
-;; common grid functions
-
-(defn visit-cell [grid cell]
-  (update-in grid [:links cell] #(or % #{})))
-
-(defn visited-cell? [grid cell]
-  (contains? (:links grid) cell))
-
-(defn link-cells [grid cell-a cell-b]
-  (assert (not (nil? cell-a)))
-  (assert (not (nil? cell-b)))
-  (-> grid
-      (update-in [:links cell-a] #(conj (or % #{}) cell-b))
-      (update-in [:links cell-b] #(conj (or % #{}) cell-a))))
-
-(defn link-path [grid path]
-  (->> (partition 2 1 path)
-       (reduce (fn [grid [ca cb]] (link-cells grid ca cb)) grid)))
-
-(defn linked-to? [grid cell-a cell-b]
-  (contains? (get-in grid [:links cell-a] #{}) cell-b))
-
-(defn unvisited-cells [{:keys [links] :as grid}]
-  (->> (cells-seq grid)
-       (remove (partial contains? links))))
-
-(defn rows-seq [grid]
-  (->> (cells-seq grid) (group-by first) (vals)))
-
-(defn valid-neighbors [grid cell]
-  (->> (cell-neighbors grid cell)
-       (filter (partial valid-pos? grid))
-       (set)))
-
-(defn accessible-neighbors [grid cell]
-  (->> (cell-neighbors grid cell)
-       (filter (partial linked-to? grid cell))
-       (set)))
-
-(defn unvisited-neighbors [grid cell]
-  (->> (valid-neighbors grid cell)
-       (remove (partial visited-cell? grid))
-       (set)))
-
-(defn unlinked-neighbors [grid cell]
-  (->> (valid-neighbors grid cell)
-       (remove (partial linked-to? grid cell))
-       (set)))
-
-(defn dead-end? [{:keys [links]} cell] (= 1 (count (links cell))))
-
-(defn dead-ends [{:keys [links] :as grid}]
-  (->> (keys links)
-       (filter (partial dead-end? grid))
-       (set)))
-
-(defn braid [grid p]
-  (reduce (fn [grid cell]
-            (let [dead-end? (partial dead-end? grid)]
-              (if (and (dead-end? cell) (<= (rand) p))
-                (let [neighbors (-> (unlinked-neighbors grid cell))
-                      neighbor  (or (->> neighbors (filter dead-end?) (first))
-                                    (-> neighbors (vec) (rand-nth)))]
-                  (link-cells grid cell neighbor))
-                grid)))
-          grid (dead-ends grid)))
-
 ;; maze generators
 
 (defn binary-tree-link-cell [{:keys [rows columns] :as grid} [y x :as cell] direction]
@@ -368,16 +431,15 @@
             (recur (link-cells grid next (rand-nth linkable-neighbors)) next)))))))
 
 (defn gen-recursive-backtracker [grid]
-  (let [cells-n (count-cells grid)]
-    (loop [{:keys [links] :as grid} grid
-           stack (list (rand-cell grid))]
-      (if (= (count links) cells-n)
-        grid
-        (let [cell (peek stack)]
-          (if-let [next-options (seq (unvisited-neighbors grid cell))]
-            (let [next (rand-nth next-options)]
-              (recur (link-cells grid cell next) (conj stack next)))
-            (recur grid (pop stack))))))))
+  (loop [{:keys [links] :as grid} grid
+         stack (list (rand-cell grid))]
+    (if (= (count links) (count-cells grid))
+      grid
+      (let [cell (peek stack)]
+        (if-let [next-options (seq (unvisited-neighbors grid cell))]
+          (let [next (rand-nth next-options)]
+            (recur (link-cells grid cell next) (conj stack next)))
+          (recur grid (pop stack)))))))
 
 ;; solvers
 

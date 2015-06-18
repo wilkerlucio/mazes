@@ -332,7 +332,6 @@
                                                 (update :mask into (:mask cur-data))
                                                 generator
                                                 (m/braid (:braid cur-data))))
-              _ (print "braid with" (:braid cur-data))
               marks (bench "generating marks" (-> (m/dijkstra-enumerate grid (m/rand-cell grid))))
               ;marks (bench "generating marks" (-> (m/dijkstra-enumerate grid [0 0])))
               ;marks (bench "generating marks" (-> (m/longest-path-marks grid)))
@@ -372,19 +371,27 @@
 
 (def INSET_AMOUNT 2)
 
+(defn soft-linked-to? [grid a b]
+  (or (linked-to? grid a b)
+      (linked-to? grid a (conj b true))))
+
 (extend-type m/InsetRectangularGrid
   IRenderGrid
-  (draw-cell [grid cell attributes]
+  (draw-cell [grid [_ _ under :as cell] attributes]
     (let [cell-size (rect-cell-size grid)
           [x1 y1 x4 y4 :as bounds] (cell-bounds cell cell-size)
           [x2 y2 x3 y3] (bounds-inset bounds INSET_AMOUNT)
-          rects     (->> [(if (linked-to? grid cell (north cell)) [x2 (dec y1) x3 (inc y2)])
-                          (if (linked-to? grid cell (east cell)) [(dec x3) y2 (inc x4) y3])
-                          (if (linked-to? grid cell (south cell)) [x2 (dec y3) x3 (inc y4)])
-                          (if (linked-to? grid cell (west cell)) [(dec x1) y2 (inc x2) y3])
-                          [x2 y2 x3 y3]]
+          rects     (if under
+                      (if (m/horizontal-passage? grid cell)
+                        [[x1 y2 x2 y3] [x3 y2 x4 y3]]
+                        [[x2 y1 x3 y2] [x2 y3 x3 y4]])
+                      (->> [(if (soft-linked-to? grid cell (north cell)) [x2 (dec y1) x3 (inc y2)])
+                            (if (soft-linked-to? grid cell (east cell)) [(dec x3) y2 (inc x4) y3])
+                            (if (soft-linked-to? grid cell (south cell)) [x2 (dec y3) x3 (inc y4)])
+                            (if (soft-linked-to? grid cell (west cell)) [(dec x1) y2 (inc x2) y3])
+                            [x2 y2 x3 y3]]
 
-                         (filter identity))]
+                           (filter identity)))]
       (apply dom/g (clj->js attributes) (map #(svg-rect % {}) rects))))
 
   (draw-grid-edges [grid style]
@@ -393,16 +400,16 @@
           link->line (fn [cell]
                        (let [[x1 y1 x4 y4 :as bounds] (cell-bounds cell cell-size)
                              [x2 y2 x3 y3] (bounds-inset bounds INSET_AMOUNT)
-                             lines (->> [(if (linked-to? grid cell (north cell))
+                             lines (->> [(if (soft-linked-to? grid cell (north cell))
                                            [[x2 y1 x2 y2] [x3 y1 x3 y2]]
                                            [[x2 y2 x3 y2]])
-                                         (if (linked-to? grid cell (south cell))
+                                         (if (soft-linked-to? grid cell (south cell))
                                            [[x2 y3 x2 y4] [x3 y3 x3 y4]]
                                            [[x2 y3 x3 y3]])
-                                         (if (linked-to? grid cell (west cell))
+                                         (if (soft-linked-to? grid cell (west cell))
                                            [[x1 y2 x2 y2] [x1 y3 x2 y3]]
                                            [[x2 y2 x2 y3]])
-                                         (if (linked-to? grid cell (east cell))
+                                         (if (soft-linked-to? grid cell (east cell))
                                            [[x3 y2 x4 y2] [x3 y3 x4 y3]]
                                            [[x3 y2 x3 y3]])]
                                         flatten1)]

@@ -630,4 +630,5 @@
   (let [bus (chan 1024)
         pub (async/pub bus first)
         root (om/root maze-playground app-state {:target node :shared {:bus bus :pub pub}})]
+    (put! bus [:generate-maze])
     (om/get-state root)))

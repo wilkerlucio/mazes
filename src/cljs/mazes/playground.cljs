@@ -20,7 +20,7 @@
 ;; state and data
 
 (def initial-state
-  {:grid-type      :polar
+  {:grid-type      :rectangular-inset
    :grid-size      {:columns 20 :rows 20}
    :generator      :recursive-backtracker
    :marker-builder :random-point

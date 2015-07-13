@@ -396,7 +396,7 @@
 
   (draw-grid-edges [grid style]
     (let [cell-size (rect-cell-size grid)
-          style (merge style {:stroke-linecap "square"})
+          style (merge style {:strokeLinecap "square"})
           link->line (fn [cell]
                        (let [[x1 y1 x4 y4 :as bounds] (cell-bounds cell cell-size)
                              [x2 y2 x3 y3] (bounds-inset bounds INSET_AMOUNT)

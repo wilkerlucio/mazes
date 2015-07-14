@@ -38,6 +38,7 @@ body {
   border-right: 1px solid #000;
   color: #fff;
   margin: 0;
+  overflow: auto;
 }
 .playground-menu-header {
   font-family: 'Ubuntu', sans-serif;

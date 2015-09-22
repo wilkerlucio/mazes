@@ -497,6 +497,7 @@
   (let [max-distance (get marks (farthest-point marks))
         mark->cell (fn [[cell distance]]
                      (draw-cell grid cell {:fill (color-fn (/ distance max-distance))
+                                           :style #js {:cursor "pointer"}
                                            :onClick #(put! bus [:select-cell cell])}))]
     (apply dom/g nil (map mark->cell marks))))
 
@@ -541,7 +542,7 @@
             (let [size {:width 600 :height 600}
                   grid (-> (unserialize-record grid)
                            (merge size))
-                  grid-svg
+                  grid-svg 
                        (dom/svg (clj->js (assoc size
                                            :className "playground-svg"
                                            :viewBox "-5 -5 610 610"))
